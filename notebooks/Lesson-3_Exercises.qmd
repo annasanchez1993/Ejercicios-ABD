@@ -766,7 +766,7 @@ sigma_posterior_sq <- 1 / ((n1 / sigma_0_sq) + (n2 / var_1))
 mu_posterior
 sigma_posterior_sq
 ```
-El valor 240.6374 corresponde a la media posterior, y 28.62379 corresponde a la varianza posterior.
+El valor 240.6374 corresponde a la media posterior y 28.62379 corresponde a la varianza posterior.
 
 Para obtener la verosimilitud de la media $μ$, calculamos la función de densidad de probabilidad:
 ```{r verosimilitud}
