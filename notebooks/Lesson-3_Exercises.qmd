@@ -23,7 +23,7 @@ En primer lugar, configuramos el entorno para ejecutar el código.
 # Paquetes:
 library(tidyverse)
 library(RColorBrewer)
-
+renv::snapshot()
 
 # Configuración de la salida gráfica:
 
