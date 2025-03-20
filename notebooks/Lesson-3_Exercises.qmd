@@ -182,7 +182,7 @@ max_norm
 
 ::: {#respuesta-2 .callout-note}
 En la distribución uniforme $U(0,1)$, la función de densidad es constante en todo el intervalo, por lo que no existe un único valor de la variable aleatoria en el cual se dé el valor máximo de la función de densidad.
-En la distribución normal $N(0,1)$, el valor máximo de la función de densidad ocurre en la media (μ), que representa el centro de la distribución.
+En la distribución normal $N(0,1)$, el valor máximo de la densidad ocurre en $x=0$.
 :::
 
 ### Pregunta 3
@@ -198,7 +198,7 @@ Importante: la probabilidad no es lo mismo que la densidad. Lo que siempre debe 
 
 ### Pregunta 4
 
--   Calcula y representa la función de distribución de la variable normal
+-   Calcula y representa la función de distribución de la variable normal.
 
 ::: {#respuesta-4 .callout-note}
 ```{r}
@@ -276,12 +276,12 @@ El gráfico se ve como una línea plana, lo que indica una probabilidad constant
 ::: {#respuesta-8 .callout-note}
 ```{r}
 x <- seq(0, 1, length.out = 1000)
-alpha_values <- c(1, 2, 5, 3)
-beta_values <- c(3, 5, 1, 3)
+alpha_values <- c(0.5, 2, 5, 3)
+beta_values <- c(0.5, 5, 1, 3)
 par(mfrow=c(2,2))
 
-y_lim <- c(0, 2)
 x_lim <- c(0, 1)
+y_lim <- c(0, 5)
 
 for (i in 1:length(alpha_values)) {
   alpha <- alpha_values[i]
@@ -301,7 +301,8 @@ for (i in 1:length(alpha_values)) {
 -   ¿Qué ocurre a medida que van creciendo?
 
 ::: {#respuesta-9 .callout-note}
-Cuando α crece más que β la distribución se vuelve más sesgada hacia la derecha (hacia 1). Cuando β crece más que α la distribución se vuelve más sesgada hacia la izquierda (hacia 0).
+Cuando Beta(2,5): la distribución se inclina hacia la izquierda (hacia 0), porque β>α
+Cuando beta(5,1): la distribución se inclina fuertemente hacia la derecha (hacia 1), porque α>β
 :::
 
 ### Pregunta 10
@@ -309,7 +310,7 @@ Cuando α crece más que β la distribución se vuelve más sesgada hacia la der
 -   ¿Qué ocurre cuando son iguales? ¿Y cuándo son distintos?
 
 ::: {#respuesta-10 .callout-note}
-Cuando α y β son iguales y crecen la distribución se aproxima a una distribución uniforme. Cuando α y β son distintos, la distribución deja de ser simétrica y se vuelve sesgada (asimétrica).
+Cuando α y β son iguales y crecen la distribución es simétrica alrededor de 0.5 y la curva adquiere una forma de "montaña" cada vez más plana en la cima. Por ejemplo Beta (3,3). Si los parámetros son diferentes, la distribución Beta se vuelve asimétrica, inclinándose hacia un lado.
 :::
 
 ### Pregunta 11
@@ -317,7 +318,7 @@ Cuando α y β son iguales y crecen la distribución se aproxima a una distribuc
 -   ¿Qué ocurre si tienen valores ligeramente superiores a 1?
 
 ::: {#respuesta-11 .callout-note}
-Si eso sucede, observaremos un pico más estrecho y alto en el centro de la distribución. Las colas serán más cortas, reduciendo la probabilidad de obtener valores cercanos a 0 o 1 (extremos). Como ya se ha dicho, la distribución será más simétrica si α=β, o ligeramente sesgada si son distintos.
+En comparación con Beta(1,1), ya no es completamente plana, si no que comienza a formar una ligera montaña en el centro.
 :::
 
 ### Pregunta 12
@@ -325,7 +326,7 @@ Si eso sucede, observaremos un pico más estrecho y alto en el centro de la dist
 -   ¿Qué ocurre si tienen valores por debajo de 1?
 
 ::: {#respuesta-12 .callout-note}
-La distribución Beta toma una forma de "U". Por lo tanto, las colas de la distribución serán más largas, lo que significa que existe una mayor probabilidad de obtener valores cercanos a 0 o 1 y menos de obtener valores cercanos al centro. La distribución será más amplia y menos concentrada en torno al centro.
+La distribución Beta toma una forma de "U". Por ejemplo en Beta (0.5,0.5).
 :::
 
 # Ejercicio 3
@@ -356,11 +357,19 @@ Se representa como $p$, que es la probabilidad de que un usuario descargue la ap
 ::: {#respuesta-14 .callout-note}
 Utilizaría una distribución Beta no informativa, es decir, $p∼Beta(1, 1)$, ya que asumo que todos los valores de $p$ son igualmente probables. Usamos esta distribución porque no tenemos información previa sobre la tasa de aceptación de la app. 
 ```{r}
+#Definimos los parámetros de la distribución Beta
 alpha_prior <- 1
-beta_prior <- 1
+beta_prior <- 1 
+
+#Definimos la precisión de los valores de p
+prec <- 1e-3  
+
+# Generamos una secuencia de valores entre 0 y 1 con incrementos de 'prec'
 probabilidades <- seq(0, 1, by = prec)
+
 # Calculamos la densidad de la distribución Beta(1,1)
 densidad <- dbeta(probabilidades, shape1 = alpha_prior, shape2 = beta_prior)
+
 # Creamos el gráfico
 ggplot(data.frame(p = probabilidades, density = densidad), aes(x = p, y = density)) +
   geom_line() +
@@ -376,7 +385,9 @@ ggplot(data.frame(p = probabilidades, density = densidad), aes(x = p, y = densit
 
 ::: {#respuesta-15 .callout-note}
 El número de usuarios $y$ que responden $sí$ sigue una distribución binomial, ya que cada usuario puede responder $sí$ y $No$. El modelo asume que cada usuario decide de manera independiente y con la misma probabilidad $p$ si va a descargar la app o no. 
-
+$$
+\mathcal{P}(y | p, n) = \binom{n}{y} p^y (1-p)^{n-y}
+$$
 :::
 
 ## Ajuste del modelo
@@ -657,9 +668,11 @@ moda_post_total
 -   ¿Qué concluyes de la respuesta anterior? ¿En qué se diferencia este enfoque del análisis de datos clásico o frecuentista?
 
 ::: {#respuesta-21 .callout-note}
-En el análisis frecuentista, los parámetros del modelo se estiman utilizando los datos actuales sin incorporar ninguna información previa, es decir, sin $aprender$ de datos anteriores. Esto no es así cuando trabajamos con modelos bayesianos. Cuando trabajamos con modelos bayesianos, la distribución a posteriori se actualiza continuamente a medida que se incorporan nuevos datos. Así, en el análisis frecuentista la muestra es sólo un reflejo de la población y no cambia la probabilidad real, mientras que en el bayesiano la muestra ayuda a actualizar la creencia sobre la población.
+En el análisis frecuentista, los parámetros del modelo se estiman utilizando los datos actuales sin incorporar ninguna información previa, es decir, sin "aprender" de datos anteriores. Esto no es así cuando trabajamos con modelos bayesianos. Cuando trabajamos con modelos bayesianos, la distribución a posteriori se actualiza continuamente a medida que se incorporan nuevos datos. Así, en el análisis frecuentista la muestra es sólo un reflejo de la población y no cambia la probabilidad real, mientras que en el bayesiano la muestra ayuda a actualizar la creencia sobre la población.
 
 En el enfoque frecuentista, habríamos analizado cada muestra por separado sin usar la información previa. En cambio, con el enfoque bayesiano, la primera muestra se usa como información previa y se actualiza con la segunda, obteniendo una nueva distribución posterior que combina ambas muestras.
+
+¿Y qué habrías concluido de la muestra poblacional? La tasa de aceptación más probable para la aplicación se estima en aproximadamente 0.606 o 60.6%. Esto implica que alrededor del 60% de los participantes probablemente descargarían la aplicación.
 :::
 
 # Ejercicio 4
@@ -782,18 +795,15 @@ library(ggplot2)
 
 ggplot() +
   # Gráfico de la distribución previa
-  geom_line(aes(x = rango, y = distribucion_previa), size = 1.2, alpha = 0.7) +
+  geom_line(aes(x = rango, y = distribucion_previa), linewidth = 1.2, alpha = 0.7) +
   # Gráfico de la distribución posterior
-  geom_line(aes(x = rango, y = distribucion_posterior_1), size = 1.2, alpha = 0.7) +
+  geom_line(aes(x = rango, y = distribucion_posterior_1), linewidth = 1.2, alpha = 0.7) +
   # Agregar líneas verticales para los estimadores
-  geom_vline(xintercept = estimador_esperado_previa, linetype = "dashed") +
-  geom_vline(xintercept = estimador_modal_previa, linetype = "dashed") +
-  geom_vline(xintercept = estimador_esperado_posterior, linetype = "dashed") +
-  geom_vline(xintercept = estimador_modal_posterior, linetype = "dashed") +
+  geom_vline(xintercept = estimador_esperado_previa, linetype = "dashed", color = "blue") +  # Estimador esperado previa
+  geom_vline(xintercept = estimador_modal_previa, linetype = "dashed", color = "green") +    # Estimador modal previa
+  geom_vline(xintercept = estimador_esperado_posterior, linetype = "dashed", color = "red") +  # Estimador esperado posterior
+  geom_vline(xintercept = estimador_modal_posterior, linetype = "dashed", color = "purple") +  # Estimador modal posterior
   labs(
-    title = "Distribuciones Previa y Posterior de la Media",
-    x = "Media",
-    y = "Densidad",
     caption = paste("Estimadores: Esperado y Modal para la previa y posterior")
   )
 
@@ -807,4 +817,6 @@ cat("Esperado (posterior): ", round(estimador_esperado_posterior, 2), "\n")
 cat("Modal (posterior): ", round(estimador_modal_posterior, 2), "\n")
 ```
 Lo que hemos hecho ha sido actualizar nuestra "creencia" sobre la media de los tiempos de lectura después de ver los datos. La distribución previa nos decía que la media era 247, pero la distribución posterior (después de ver los datos) nos muestra que la media es 234.81.
+
+No sé qué más añadir.
 :::
