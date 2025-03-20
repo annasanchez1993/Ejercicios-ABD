@@ -24,7 +24,6 @@ En primer lugar, configuramos el entorno para ejecutar el código.
 library(tidyverse)
 library(RColorBrewer)
 
-
 # Configuración de la salida gráfica:
 
 PALETA <- brewer.pal(8, "Set2") # Colores por defecto
@@ -163,6 +162,18 @@ Calcula o comprueba las siguientes respuestas usando comandos de R:
 -   ¿Cuál es el valor máximo de la función de densidad?
 
 ::: {#respuesta-1 .callout-note}
+La distribución uniforme $U(0,1)$ tiene una función de densidad constante en todo el intervalo.
+Es decir, la densidad en todos los puntos es la misma. Como es constante y su valor es 1, el valor máximo de la función de densidad es 1.
+
+En el caso de la distribución normal, ésta tiene forma de campana y su valor máximo ocurre en el centro de la distribución.
+
+```{r}
+x_normal <- seq(from = DENS_INF, to = DENS_SUP, by = PREC) 
+densidad_normal <- dnorm(x_normal, mean = 0, sd = 1)
+max_norm <- max(densidad_normal)
+max_norm
+```
+
 :::
 
 ### Pregunta 2
@@ -170,6 +181,8 @@ Calcula o comprueba las siguientes respuestas usando comandos de R:
 -   ¿Para qué valor de la variable aleatoria se da? ¿Cómo llamarías a ese valor?
 
 ::: {#respuesta-2 .callout-note}
+En la distribución uniforme $U(0,1)$, la función de densidad es constante en todo el intervalo, por lo que no existe un único valor de la variable aleatoria en el cual se dé el valor máximo de la función de densidad.
+En la distribución normal $N(0,1)$, el valor máximo de la densidad ocurre en $x=0$.
 :::
 
 ### Pregunta 3
@@ -177,15 +190,34 @@ Calcula o comprueba las siguientes respuestas usando comandos de R:
 -   El valor máximo, ¿puede ser mayor que 1? Justifica tu respuesta.
 
 ::: {#respuesta-3 .callout-note}
+Sí. El valor máximo de la función de densidad puede ser mayor que 1 si la desviación estándar es pequeña. Esto pasa porque, cuando la desviación estándar es pequeña, la distribución se hace más estrecha y alta, es decir, los datos están más concentrados alrededor de la media.
+
+Importante: la probabilidad no es lo mismo que la densidad. Lo que siempre debe ser igual a 1 es el área total bajo la curva, ya que eso representa la probabilidad total (que siempre es 1).
+
 :::
 
 ### Pregunta 4
 
--   Calcula y representa la función de distribución de la variable normal
-
-*(Ejecuta `?cumsum` para consultar la ayuda de esa función).*
+-   Calcula y representa la función de distribución de la variable normal.
 
 ::: {#respuesta-4 .callout-note}
+```{r}
+ # Creamos tabla de datos con valores equiespaciados
+normal_cdf <- tibble(
+  variable = seq(from = DENS_INF, to = DENS_SUP, by = PREC),
+  distribucion = dnorm(variable) 
+)
+
+normal <- normal %>%
+  mutate(cdf = cumsum(densidad) * PREC)
+
+# Graficamos la CDF
+ggplot(normal_cdf, aes(x = variable, y = distribucion)) +
+  geom_line(color = "blue") +
+  labs(title = "Función de Distribución Acumulada (CDF) de N(0,1)",
+       x = "x", y = "F(x)")
+```
+La función de distribución acumulada de una variable aleatoria $X$ se define como $F(x)=P(X≤x)$, donde $F(x)$ es la CDF, $P$ representa la probabilidad y $x$ es un valor específico de la variable aleatoria. La CDF es una función no decreciente que varía de 0 a 1. A medida que $x$ se acerca al infinito negativo, la CDF tiende a 0, y cuando $x$ se aproxima al infinito positivo, la CDF tiende a 1.
 :::
 
 ### Pregunta 5
@@ -193,6 +225,11 @@ Calcula o comprueba las siguientes respuestas usando comandos de R:
 -   Calcula el valor esperado de la distribución normal.
 
 ::: {#respuesta-5 .callout-note}
+La media de la distribución normal estándar es cero y la desviación típica es uno.
+```{r}
+valor_esperado <- sum(normal$variable * normal$densidad) * PREC
+valor_esperado
+```
 :::
 
 # Ejercicio 2
@@ -206,6 +243,20 @@ Calcula o comprueba las siguientes respuestas usando comandos de R:
 *(Si no sabes qué limites utilizar, consulta la ayuda de `dbeta()`).*
 
 ::: {#respuesta-6 .callout-note}
+```{r}
+x_beta <- seq(0, 1, by = 0.01)
+densidad_beta <- dbeta(x_beta, shape1 = 1, shape2 = 1)
+
+df_beta <- data.frame(x = x_beta, densidad = densidad_beta)
+ggplot(df_beta, aes(x = x, y = densidad)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Distribución Beta con α = 1 y β = 1",
+    x = "Valor de x",
+    y = "Densidad"
+  )
+```
+El gráfico es una línea horizontal, ya que la densidad es constante e igual a 1 en todo el intervalo. Es una distribución uniforme porque todos los resultados posibles tienen la misma probabilidad de ocurrir. 
 :::
 
 ### Pregunta 7
@@ -213,6 +264,7 @@ Calcula o comprueba las siguientes respuestas usando comandos de R:
 -   ¿Qué forma tiene?
 
 ::: {#respuesta-7 .callout-note}
+El gráfico se ve como una línea plana, lo que indica una probabilidad constante. 
 :::
 
 ## Parámetros de la distribución Beta
@@ -222,6 +274,26 @@ Calcula o comprueba las siguientes respuestas usando comandos de R:
 -   Prueba con diferentes valores de $\alpha$ y $\beta$.
 
 ::: {#respuesta-8 .callout-note}
+```{r}
+x <- seq(0, 1, length.out = 1000)
+alpha_values <- c(0.5, 2, 5, 3)
+beta_values <- c(0.5, 5, 1, 3)
+par(mfrow=c(2,2))
+
+x_lim <- c(0, 1)
+y_lim <- c(0, 5)
+
+for (i in 1:length(alpha_values)) {
+  alpha <- alpha_values[i]
+  beta <- beta_values[i]
+  y <- dbeta(x, shape1 = alpha, shape2 = beta)
+  plot(x, y, type = "l", col = "blue", lwd = 2, 
+       main = paste("Beta(", alpha, ",", beta, ")"), 
+       xlab = "x", ylab = "Densidad",
+       xlim = x_lim,
+       ylim = y_lim)  
+}
+```
 :::
 
 ### Pregunta 9
@@ -229,6 +301,8 @@ Calcula o comprueba las siguientes respuestas usando comandos de R:
 -   ¿Qué ocurre a medida que van creciendo?
 
 ::: {#respuesta-9 .callout-note}
+Cuando Beta(2,5): la distribución se inclina hacia la izquierda (hacia 0), porque β>α
+Cuando beta(5,1): la distribución se inclina fuertemente hacia la derecha (hacia 1), porque α>β
 :::
 
 ### Pregunta 10
@@ -236,6 +310,7 @@ Calcula o comprueba las siguientes respuestas usando comandos de R:
 -   ¿Qué ocurre cuando son iguales? ¿Y cuándo son distintos?
 
 ::: {#respuesta-10 .callout-note}
+Cuando α y β son iguales y crecen la distribución es simétrica alrededor de 0.5 y la curva adquiere una forma de "montaña" cada vez más plana en la cima. Por ejemplo Beta (3,3). Si los parámetros son diferentes, la distribución Beta se vuelve asimétrica, inclinándose hacia un lado.
 :::
 
 ### Pregunta 11
@@ -243,6 +318,7 @@ Calcula o comprueba las siguientes respuestas usando comandos de R:
 -   ¿Qué ocurre si tienen valores ligeramente superiores a 1?
 
 ::: {#respuesta-11 .callout-note}
+En comparación con Beta(1,1), ya no es completamente plana, si no que comienza a formar una ligera montaña en el centro.
 :::
 
 ### Pregunta 12
@@ -250,6 +326,7 @@ Calcula o comprueba las siguientes respuestas usando comandos de R:
 -   ¿Qué ocurre si tienen valores por debajo de 1?
 
 ::: {#respuesta-12 .callout-note}
+La distribución Beta toma una forma de "U". Por ejemplo en Beta (0.5,0.5).
 :::
 
 # Ejercicio 3
@@ -268,6 +345,7 @@ El jefe del departamento de analítica te asigna al proyecto y te pide que ajust
 -   ¿Cómo se representa la "tasa de aceptación" en el modelo?
 
 ::: {#respuesta-13 .callout-note}
+Se representa como $p$, que es la probabilidad de que un usuario descargue la app. Como no sabemos su valor, asumimos que $p$ sigue una distribución Beta, lo que significa que puede tomar cualquier valor entre 0 y 1. Como no tenemos información previa, usamos una distribución no informativa. Para esto, usamos $α=1$ y $β=1$, que asigna la misma probabilidad a todos los valores posibles de $p$.
 :::
 
 ### Pregunta 14
@@ -277,6 +355,28 @@ El jefe del departamento de analítica te asigna al proyecto y te pide que ajust
 *(Ajusta los ejes correctamente, si hace falta, como en la distribución uniforme).*
 
 ::: {#respuesta-14 .callout-note}
+Utilizaría una distribución Beta no informativa, es decir, $p∼Beta(1, 1)$, ya que asumo que todos los valores de $p$ son igualmente probables. Usamos esta distribución porque no tenemos información previa sobre la tasa de aceptación de la app. 
+```{r}
+#Definimos los parámetros de la distribución Beta
+alpha_prior <- 1
+beta_prior <- 1 
+
+#Definimos la precisión de los valores de p
+prec <- 1e-3  
+
+# Generamos una secuencia de valores entre 0 y 1 con incrementos de 'prec'
+probabilidades <- seq(0, 1, by = prec)
+
+# Calculamos la densidad de la distribución Beta(1,1)
+densidad <- dbeta(probabilidades, shape1 = alpha_prior, shape2 = beta_prior)
+
+# Creamos el gráfico
+ggplot(data.frame(p = probabilidades, density = densidad), aes(x = p, y = density)) +
+  geom_line() +
+  labs(title = "Distribución Beta(1,1) - Distribución Previa No Informativa",
+       x = "p (Probabilidad de aceptación)",
+       y = "Densidad")
+```
 :::
 
 ### Pregunta 15
@@ -284,6 +384,10 @@ El jefe del departamento de analítica te asigna al proyecto y te pide que ajust
 -   Supón que $y$ es el número de usuarios/as que han respondido que "Sí" descargarían la app. Formula la verosimilitud del modelo.
 
 ::: {#respuesta-15 .callout-note}
+El número de usuarios $y$ que responden $sí$ sigue una distribución binomial, ya que cada usuario puede responder $sí$ y $No$. El modelo asume que cada usuario decide de manera independiente y con la misma probabilidad $p$ si va a descargar la app o no. 
+$$
+\mathcal{P}(y | p, n) = \binom{n}{y} p^y (1-p)^{n-y}
+$$
 :::
 
 ## Ajuste del modelo
@@ -305,15 +409,68 @@ aceptacion_muestra <- tibble(
 -   Obtén, en base a estos datos, la distribución posterior de la tasa de aceptación (en forma analítica), y represéntala junto a la distribución previa.
 
 ::: {#respuesta-16 .callout-note}
+
+```{r}
+# Contamos los "Sí"
+y <- sum(aceptacion_muestra$resp_descarga_app == "Si")
+n <- nrow(aceptacion_muestra)
+
+# Parámetros de la distribución Beta posterior
+alpha_post <- alpha_prior + y
+beta_post <- beta_prior + (n - y)
+
+# Calculamos las densidades de las distribuciones Beta a priori y a posteriori
+densidad_prior <- dbeta(probabilidades, shape1 = alpha_prior, shape2 = beta_prior)
+densidad_post <- dbeta(probabilidades, shape1 = alpha_post, shape2 = beta_post)
+
+# Graficamos las distribuciones
+ggplot() +
+  geom_line(aes(x = probabilidades, y = densidad_prior), color = "blue", linewidth = 1.2, linetype = "dashed") +
+  geom_line(aes(x = probabilidades, y = densidad_post), color = "red", linewidth = 1.2) +
+  labs(
+    title = "Distribuciones Beta: A Priori vs Posterior",
+    x = "Tasa de aceptación (p)",
+    y = "Densidad",
+    caption = "Distribución a priori (azul) y posterior (roja)"
+  )
+```
+
+Primero, usamos $Beta(1,1)$ ya que antes de ver los datos asumimos que cualquier valor entre 0 y 1 es igualmente probable. 
+A continuación, usamos los datos observados para actualizar la distribución a priori. Con 17 respuestas afirmativas y 5 negativas. Lo que significa que $αposterior=1+17=18$ y $βposterior=1+(22−17)=6$
+El gráfico compara la distribución a priori, en azul, y la distribución posterior, en rojo. De este modo, podemos observar cómo cambia la distribución de $p$ después de observar los datos. 
+La distribución posterior refleja nuestro conocimiento actualizado sobre la tasa de aceptación $p$ después de observar los datos. A medida que incorporamos las respuestas afirmativas y negativas, la distribución se ajusta, concentrándose alrededor de un valor más probable de $p$.
 :::
 
 ### Pregunta 17
 
--   Obtén el valor esperado y la moda de la distribuión posterior. ¿Cómo los interpretarías?
+-   Obtén el valor esperado y la moda de la distribución posterior. ¿Cómo los interpretarías?
 
 *(Nota: Ten en cuenta la "precisión" al calcular el "peso" de cada muestra.)*
 
 ::: {#respuesta-17 .callout-note}
+
+```{r}
+# Calcular el valor esperado de la distribución posterior
+valor_esperado <- alpha_post / (alpha_post + beta_post)
+
+# Calcular la moda de la distribución posterior
+moda <- (alpha_post - 1) / (alpha_post + beta_post - 2)
+
+# Mostrar los resultados
+valor_esperado
+moda
+```
+La cantidad de respuestas afirmativas es $y=17$ y el total de respuestas es $n=22$. Los parámetros de la distribución posterior son: $αposterior=1+17=18$ y $βposterior=1+(22−17)=6$
+El valor esperado de la distribución Beta es: 
+$$
+\mathcal{E}(p) = \frac{\alpha_{\text{posterior}}}{\alpha_{\text{posterior}} + \beta_{\text{posterior}}}
+$$
+La fórmula para la moda: 
+$$
+\mathcal{M}(p) = \frac{\alpha_{\text{posterior}} - 1}{\alpha_{\text{posterior}} + \beta_{\text{posterior}} - 2}
+$$
+Sustituyendo los valores, la moda es $0.7725$
+El valor esperado de la distribución posterior es aproximadamente 0.75, lo que significa que, basándonos en los datos disponibles, estimamos que aproximadamente el 75% de los usuarios aceptarán descargar la app. Sin embargo, el valor más probable de aceptación es ligeramente más alto, aproximadamente el 77.25% (moda).
 :::
 
 ## Ajuste con una nueva muestra
@@ -344,6 +501,30 @@ aceptacion_muestra_2 <- tibble(
 -   ¿Qué distribución previa utilizarías en esta ocasión? Formúlala.
 
 ::: {#respuesta-18 .callout-note}
+Dado que ya hemos analizado una muestra anterior con 22 respuestas y obtenido una distribución posterior $Beta(1+17,1+5)=Beta(18,6)$, podemos usar esta distribución como la nueva distribución previa para actualizarla con la nueva muestra. 
+
+
+```{r}
+# Contamos los "Sí" en la nueva muestra
+y_new <- sum(aceptacion_muestra_2$resp_descarga_app == "Si")
+n_new <- nrow(aceptacion_muestra_2)
+
+# Imprimimos para verificar los resultados
+print(paste("Número de respuestas afirmativas:", y_new))
+print(paste("Tamaño total de la muestra:", n_new))
+
+# Parámetros de la distribución previa de la nueva muestra (posterior del ejercicio anterior)
+alpha_prior_new <- 18
+beta_prior_new <- 6
+
+# Parámetros de la distribución Beta posterior para la nueva muestra
+alpha_post_2 <- alpha_prior_new + y_new
+beta_post_2 <- beta_prior_new + (n_new - y_new)
+
+# Imprimir los resultados
+print(paste("Alpha posterior 2:", alpha_post_2))
+print(paste("Beta posterior 2:", beta_post_2))
+```
 :::
 
 ### Pregunta 19
@@ -351,6 +532,67 @@ aceptacion_muestra_2 <- tibble(
 -   Obtén la distribución posterior analítica después de esta segunda muestra, represéntala junto con las dos distribuciones anteriores, y obtén los estimadores posteriores esperado y modal.
 
 ::: {#respuesta-19 .callout-note}
+La distribución posterior después de la nueva muestra será $Beta(83,54)$
+El valor esperado de la distribución Beta es: 
+
+$$
+\mathcal{E}(p) = \frac{\alpha_{\text{posterior}}}{\alpha_{\text{posterior}} + \beta_{\text{posterior}}}
+$$
+Sustituyendo los valores:
+
+$$
+\mathcal{E}(p) = \frac{83}{83 + 54} = \frac{83}{137} \approx 0.606
+$$
+La fórmula para la moda: 
+
+$$
+\mathcal{M}(p) = \frac{\alpha_{\text{posterior}} - 1}{\alpha_{\text{posterior}} + \beta_{\text{posterior}} - 2}
+$$
+Sustituyendo los valores:
+
+$$
+\mathcal{M}(p) = \frac{83 - 1}{83 + 54 - 2} = \frac{82}{135} \approx 0.607
+$$
+La actualización de la distribución posterior con la nueva muestra nos permite afinar aún más nuestra estimación de la tasa de aceptación: ahora el valor esperado (0.606) es ligeramente menor que el de la muestra anterior (0.75) debido a la mayor cantidad de datos disponibles.
+
+Todo ello lo podemos calcular con R y graficar las distribuciones:
+
+```{r}
+# Calculamos las densidades de las distribuciones Beta:
+# - A priori inicial (Beta(1,1))
+# - Posterior después de la primera muestra (Beta(18,6))
+# - Posterior después de la segunda muestra (Beta(alpha_post_2, beta_post_2))
+
+# Definir un rango de probabilidades
+probabilidades <- seq(0, 1, length.out = 1000)
+
+# Densidades
+densidad_prior_inicial <- dbeta(probabilidades, shape1 = 1, shape2 = 1)
+densidad_post_1 <- dbeta(probabilidades, shape1 = alpha_prior_new, shape2 = beta_prior_new)
+densidad_post_2 <- dbeta(probabilidades, shape1 = alpha_post_2, shape2 = beta_post_2)
+
+# Graficamos las distribuciones
+ggplot() +
+  geom_line(aes(x = probabilidades, y = densidad_prior_inicial), color = "blue", linewidth = 1.2, linetype = "dashed") +
+  geom_line(aes(x = probabilidades, y = densidad_post_1), color = "red", linewidth = 1.2, linetype = "dotted") +
+  geom_line(aes(x = probabilidades, y = densidad_post_2), color = "green", linewidth = 1.2) +
+  labs(
+    title = "Evolución de la Distribución de la Tasa de Aceptación",
+    x = "Tasa de aceptación (p)",
+    y = "Densidad",
+    caption = "Distribución a priori inicial (azul), posterior 1ra muestra (roja), posterior 2da muestra (verde)"
+  )
+
+# Calcular el valor esperado de la nueva distribución posterior
+valor_esperado_post_2 <- alpha_post_2 / (alpha_post_2 + beta_post_2)
+
+# Calcular la moda de la nueva distribución posterior
+moda_post_2 <- (alpha_post_2 - 1) / (alpha_post_2 + beta_post_2 - 2)
+
+# Mostrar los resultados
+valor_esperado_post_2
+moda_post_2
+```
 :::
 
 ## Ajuste con las muestras colapsadas
@@ -370,6 +612,55 @@ aceptacion_muestra_total <- bind_rows(
 -   Obtén la distribución posterior analítica después de esta segunda muestra, represéntala junto con las distribuciones anteriores, y obtén los estimadores posteriores esperado y modal.
 
 ::: {#respuesta-20 .callout-note}
+La suma de respuestas afirmativas de ambas muestras es $17+85=82$
+La suma total de la muestra es $22+113=135$
+Por lo tanto, al calcular los parámetros $αposterior$ y $βposterior$, obtenemos la misma distribución posterior que si hubiéramos trabajado con los datos combinados desde el principio.
+
+```{r}
+# Contamos el número de respuestas afirmativas en la muestra total
+y_total <- sum(aceptacion_muestra_total$resp_descarga_app == "Si")
+n_total <- nrow(aceptacion_muestra_total)
+
+# Parámetros de la distribución Beta a priori
+alpha_prior <- 1
+beta_prior <- 1
+
+# Parámetros de la distribución Beta posterior para la muestra total
+alpha_post_total <- alpha_prior + y_total
+beta_post_total <- beta_prior + (n_total - y_total)
+
+# Generar valores de p en el intervalo (0, 1)
+probabilidades <- seq(0, 1, length.out = 1000)
+
+# Calculamos las densidades de las distribuciones Beta a priori y posterior total
+densidad_prior_inicial <- dbeta(probabilidades, shape1 = 1, shape2 = 1)
+densidad_post_1 <- dbeta(probabilidades, shape1 = 18, shape2 = 6)
+densidad_post_2 <- dbeta(probabilidades, shape1 = alpha_post_2, shape2 = beta_post_2)
+densidad_post_total <- dbeta(probabilidades, shape1 = alpha_post_total, shape2 = beta_post_total)
+
+# Graficamos las distribuciones
+ggplot() +
+  geom_line(aes(x = probabilidades, y = densidad_prior_inicial), linewidth = 1.2, linetype = "dashed") +
+  geom_line(aes(x = probabilidades, y = densidad_post_1), linewidth = 1.2, linetype = "dotted") +
+  geom_line(aes(x = probabilidades, y = densidad_post_2), linewidth = 1.2, linetype = "dotdash") +
+  geom_line(aes(x = probabilidades, y = densidad_post_total), linewidth = 1.5) +
+  labs(
+    title = "Evolución de la Distribución de la Tasa de Aceptación",
+    x = "Tasa de aceptación (p)",
+    y = "Densidad"
+  )
+
+# Calculamos el valor esperado y la moda de la nueva distribución posterior colapsada
+valor_esperado_post_total <- alpha_post_total / (alpha_post_total + beta_post_total)
+moda_post_total <- (alpha_post_total - 1) / (alpha_post_total + beta_post_total - 2)
+
+# Mostramos los resultados
+valor_esperado_post_total
+moda_post_total
+
+```
+
+
 :::
 
 ### Pregunta 21
@@ -377,6 +668,11 @@ aceptacion_muestra_total <- bind_rows(
 -   ¿Qué concluyes de la respuesta anterior? ¿En qué se diferencia este enfoque del análisis de datos clásico o frecuentista?
 
 ::: {#respuesta-21 .callout-note}
+En el análisis frecuentista, los parámetros del modelo se estiman utilizando los datos actuales sin incorporar ninguna información previa, es decir, sin "aprender" de datos anteriores. Esto no es así cuando trabajamos con modelos bayesianos. Cuando trabajamos con modelos bayesianos, la distribución a posteriori se actualiza continuamente a medida que se incorporan nuevos datos. Así, en el análisis frecuentista la muestra es sólo un reflejo de la población y no cambia la probabilidad real, mientras que en el bayesiano la muestra ayuda a actualizar la creencia sobre la población.
+
+En el enfoque frecuentista, habríamos analizado cada muestra por separado sin usar la información previa. En cambio, con el enfoque bayesiano, la primera muestra se usa como información previa y se actualiza con la segunda, obteniendo una nueva distribución posterior que combina ambas muestras.
+
+¿Y qué habrías concluido de la muestra poblacional? La tasa de aceptación más probable para la aplicación se estima en aproximadamente 0.606 o 60.6%. Esto implica que alrededor del 60% de los participantes probablemente descargarían la aplicación.
 :::
 
 # Ejercicio 4
@@ -417,6 +713,46 @@ clase_2 <- tibble(
 -   Determina la verosimilitud y las distribuciones previa y posterior de la media, asumiendo que la varianza de la verosimilitud es la varianza de los datos. Justifica cómo has obtenido los parámetros de la distribución posterior (usa 2 decimales de precisión).
 
 ::: {#respuesta-22 .callout-note}
+
+```{r}
+media_clase_1 <- mean(clase_1$tiempo)
+varianza_clase_1 <- var(clase_1$tiempo)
+
+media_clase_2 <- mean(clase_2$tiempo)
+varianza_clase_2 <- var(clase_2$tiempo)
+
+# Definir los parámetros previos
+mu_0 <- 247  # Media de la distribución previa
+sigma_0_sq <- 1156  # Varianza de la distribución previa
+
+# Clase 1: Calcular distribución posterior
+n_1 <- nrow(clase_1)  # Tamaño de la muestra clase 1
+x_bar_1 <- media_clase_1  # Media muestral clase 1
+sigma_sq_1 <- varianza_clase_1  # Varianza muestral clase 1
+
+# Cálculo de los parámetros de la posterior para clase 1
+var_posterior_1 <- 1 / (1/sigma_0_sq + n_1 / sigma_sq_1)  # Varianza posterior
+mean_posterior_1 <- (mu_0 / sigma_0_sq + n_1 * x_bar_1 / sigma_sq_1) * var_posterior_1  # Media posterior
+
+# Clase 2: Calcular distribución posterior
+n_2 <- nrow(clase_2)  # Tamaño de la muestra clase 2
+x_bar_2 <- media_clase_2  # Media muestral clase 2
+sigma_sq_2 <- varianza_clase_2  # Varianza muestral clase 2
+
+# Cálculo de los parámetros de la posterior para clase 2
+var_posterior_2 <- 1 / (1/sigma_0_sq + n_2 / sigma_sq_2)  # Varianza posterior
+mean_posterior_2 <- (mu_0 / sigma_0_sq + n_2 * x_bar_2 / sigma_sq_2) * var_posterior_2  # Media posterior
+
+# Mostrar resultados
+cat("Distribución posterior clase 1:\n")
+cat("Media posterior: ", round(mean_posterior_1, 2), "\n")
+cat("Varianza posterior: ", round(var_posterior_1, 2), "\n\n")
+
+cat("Distribución posterior clase 2:\n")
+cat("Media posterior: ", round(mean_posterior_2, 2), "\n")
+cat("Varianza posterior: ", round(var_posterior_2, 2), "\n")
+```
+La distribución posterior de la media se calcula utilizando la fórmula estándar para el modelo normal-normal. Para cada clase, calculamos la media posterior y la varianza posterior.
 :::
 
 ## Estimación
@@ -426,4 +762,61 @@ clase_2 <- tibble(
 -   Representa las distribuciones previa y posterior de la media; considera un eje que cubra 4 desviaciones típicas a cada lado de la media de la distribución previa. Obten el estimador esperado y modal a partir de esta distribución y compáralos con la solución analítica de la pregunta anterior.
 
 ::: {#respuesta-23 .callout-note}
+```{r}
+# Parámetros de la distribución previa
+mu_0 <- 247  # Media de la distribución previa
+sigma_0_sq <- 1156  # Varianza de la distribución previa
+sigma_0 <- sqrt(sigma_0_sq)  # Desviación estándar de la distribución previa
+
+# Definir un rango para el gráfico, cubriendo 4 desviaciones típicas a cada lado de la media de la distribución previa
+rango <- seq(mu_0 - 4 * sigma_0, mu_0 + 4 * sigma_0, length.out = 500)
+
+# Distribución previa: Normal(mu_0, sigma_0)
+distribucion_previa <- dnorm(rango, mean = mu_0, sd = sigma_0)
+
+# Distribución posterior para clase 1
+var_posterior_1 <- 1 / (1/sigma_0_sq + n_1 / sigma_sq_1)  # Varianza posterior
+mean_posterior_1 <- (mu_0 / sigma_0_sq + n_1 * x_bar_1 / sigma_sq_1) * var_posterior_1  # Media posterior
+sigma_posterior_1 <- sqrt(var_posterior_1)
+
+# Distribución posterior para clase 1: Normal(mean_posterior_1, sigma_posterior_1)
+distribucion_posterior_1 <- dnorm(rango, mean = mean_posterior_1, sd = sigma_posterior_1)
+
+# Estimador esperado y modal para la distribución previa (como es normal, ambos son la media)
+estimador_esperado_previa <- mu_0
+estimador_modal_previa <- mu_0
+
+# Estimador esperado y modal para la distribución posterior
+estimador_esperado_posterior <- mean_posterior_1
+estimador_modal_posterior <- mean_posterior_1
+
+# Graficar las distribuciones previa y posterior
+library(ggplot2)
+
+ggplot() +
+  # Gráfico de la distribución previa
+  geom_line(aes(x = rango, y = distribucion_previa), linewidth = 1.2, alpha = 0.7) +
+  # Gráfico de la distribución posterior
+  geom_line(aes(x = rango, y = distribucion_posterior_1), linewidth = 1.2, alpha = 0.7) +
+  # Agregar líneas verticales para los estimadores
+  geom_vline(xintercept = estimador_esperado_previa, linetype = "dashed", color = "blue") +  # Estimador esperado previa
+  geom_vline(xintercept = estimador_modal_previa, linetype = "dashed", color = "green") +    # Estimador modal previa
+  geom_vline(xintercept = estimador_esperado_posterior, linetype = "dashed", color = "red") +  # Estimador esperado posterior
+  geom_vline(xintercept = estimador_modal_posterior, linetype = "dashed", color = "purple") +  # Estimador modal posterior
+  labs(
+    caption = paste("Estimadores: Esperado y Modal para la previa y posterior")
+  )
+
+# Mostrar los estimadores calculados
+cat("Estimador esperado y modal de la distribución previa (como es normal, ambos son la media):\n")
+cat("Esperado (previa): ", round(estimador_esperado_previa, 2), "\n")
+cat("Modal (previa): ", round(estimador_modal_previa, 2), "\n\n")
+
+cat("Estimador esperado y modal de la distribución posterior:\n")
+cat("Esperado (posterior): ", round(estimador_esperado_posterior, 2), "\n")
+cat("Modal (posterior): ", round(estimador_modal_posterior, 2), "\n")
+```
+Lo que hemos hecho ha sido actualizar nuestra "creencia" sobre la media de los tiempos de lectura después de ver los datos. La distribución previa nos decía que la media era 247, pero la distribución posterior (después de ver los datos) nos muestra que la media es 234.81.
+
+No sé qué más añadir.
 :::
