@@ -196,6 +196,10 @@ Importante: la probabilidad no es lo mismo que la densidad. Lo que siempre debe 
 
 :::
 
+### Pregunta 4
+
+-   Calcula y representa la función de distribución de la variable normal
+
 ::: {#respuesta-4 .callout-note}
 ```{r}
  # Creamos tabla de datos con valores equiespaciados
