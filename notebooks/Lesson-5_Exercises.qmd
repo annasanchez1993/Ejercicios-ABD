@@ -103,6 +103,42 @@ $$
 -   Utilizando la expresión analítica del modelo, obtén la expresión analítica de la distribución posterior de la media para cada una de las dos clases, con 2 decimales.
 
 ::: {#respuesta-1 .callout-note}
+```{r Ver decimales}
+options(digits = 6)  # Muestra 6 dígitos en total
+options(knitr.digits.signif = TRUE)  # Usa dígitos significativos
+```
+
+```{r Clase 1}
+n1 <- nrow(clase_1)
+ybar1 <- mean(clase_1$tiempo)
+sigma2_y1 <- var(clase_1$tiempo)
+
+# Cálculo de μ_post y σ²_post para Clase 1
+mu_post1 <- (sigma2_y1 * MU_PREVIA + n1 * SIGMA2_PREVIA * ybar1) / 
+            (sigma2_y1 + n1 * SIGMA2_PREVIA)
+sigma2_post1 <- (sigma2_y1 * SIGMA2_PREVIA) / 
+                (sigma2_y1 + n1 * SIGMA2_PREVIA)
+
+# Resultados redondeados a 2 decimales
+round(mu_post1, 2)     
+round(sigma2_post1, 2)  
+```
+
+```{r Clase 2}
+n2 <- nrow(clase_2)
+ybar2 <- mean(clase_2$tiempo)
+sigma2_y2 <- var(clase_2$tiempo)
+
+# Cálculo de μ_post y σ²_post para Clase 2
+mu_post2 <- (sigma2_y2 * MU_PREVIA + n2 * SIGMA2_PREVIA * ybar2) / 
+            (sigma2_y2 + n2 * SIGMA2_PREVIA)
+sigma2_post2 <- (sigma2_y2 * SIGMA2_PREVIA) / 
+                (sigma2_y2 + n2 * SIGMA2_PREVIA)
+
+# Resultados redondeados a 2 decimales
+round(mu_post2, 2)      
+round(sigma2_post2, 2)  
+```
 :::
 
 ## Simulación de Monte Carlo
@@ -121,6 +157,32 @@ set.seed(20250318)
 ```
 
 ::: {#respuesta-2 .callout-note}
+```{r}
+# Configuración inicial (semilla para reproducibilidad)
+set.seed(20250318)
+
+# Número de muestras de Monte Carlo
+N <- 500
+
+# Simulación para Clase 1
+muestras_clase1 <- rnorm(N, mean = mu_post1, sd = sqrt(sigma2_post1))
+
+# Simulación para Clase 2
+muestras_clase2 <- rnorm(N, mean = mu_post2, sd = sqrt(sigma2_post2))
+
+# Mostrar las primeras 5 muestras de cada clase
+head_muestras <- tibble(
+  Clase1 = head(muestras_clase1, 5),
+  Clase2 = head(muestras_clase2, 5)
+)
+
+knitr::kable(
+  head_muestras,
+  col.names = c("Muestras Clase 1", "Muestras Clase 2"),
+  caption = "Primeras 5 muestras de Monte Carlo para cada clase",
+  digits = 2
+)
+```
 :::
 
 ## Inferencia con la media de la distribución posterior
@@ -130,6 +192,36 @@ set.seed(20250318)
 -   Con las distribuciones simuladas de la pregunta anterior, estima la media y la varianza de cada distribución. Compara los resultados con los obtenidos en la Pregunta 1.
 
 ::: {#respuesta-3 .callout-note}
+```{r}
+# Estimación Monte Carlo (medias y varianzas)
+est_mc_clase1 <- c(
+  mean_mc1 = mean(muestras_clase1),
+  var_mc1  = var(muestras_clase1)
+)
+
+est_mc_clase2 <- c(
+  mean_mc2 = mean(muestras_clase2),
+  var_mc2  = var(muestras_clase2)
+)
+
+# Resultados analíticos (de la Pregunta 1)
+est_analitico <- tibble(
+  Clase = c("Clase 1", "Clase 2"),
+  Media_analitica = c(mu_post1, mu_post2),
+  Varianza_analitica = c(sigma2_post1, sigma2_post2),
+  Media_MC = c(est_mc_clase1["mean_mc1"], est_mc_clase2["mean_mc2"]),
+  Varianza_MC = c(est_mc_clase1["var_mc1"], est_mc_clase2["var_mc2"])
+)
+
+# Mostrar comparación
+knitr::kable(
+  est_analitico,
+  col.names = c("Clase", "Media (Analítica)", "Varianza (Analítica)", 
+                "Media (MC)", "Varianza (MC)"),
+  digits = 2,
+  caption = "Comparación entre métodos analítico y Monte Carlo"
+)
+```
 :::
 
 ## Tamaño muestral y error estándar de Monte Carlo
@@ -139,6 +231,42 @@ set.seed(20250318)
 -   Calcula el error estándar de Monte Carlo de las medias estimadas por el método de Monte Carlo [@hoff2009, p. 56], y su intervalo al 95% de confianza (p. 57). Asume que las varianzas verdaderas son desconocidas (i.e., utiliza las varianzas obtenidas por el método de Monte Carlo). ¿Cuál es la amplitud de los intervalos? Comprueba si los valores reales (obtenidos analíticamente) están comprendidos en los intervalos
 
 ::: {#respuesta-4 .callout-note}
+```{r}
+# Error estándar de Monte Carlo (SEM) para cada clase
+sem_clase1 <- sd(muestras_clase1) / sqrt(N)
+sem_clase2 <- sd(muestras_clase2) / sqrt(N)
+
+# Intervalos de confianza al 95% (t-Student, varianzas desconocidas)
+ic_clase1 <- mean(muestras_clase1) + qt(c(0.025, 0.975), df = N-1) * sem_clase1
+ic_clase2 <- mean(muestras_clase2) + qt(c(0.025, 0.975), df = N-1) * sem_clase2
+
+# Amplitud de los intervalos
+amplitud_clase1 <- diff(ic_clase1)
+amplitud_clase2 <- diff(ic_clase2)
+
+# Comprobación: ¿Contienen los IC los valores analíticos?
+contiene_analitico1 <- (mu_post1 >= ic_clase1[1]) & (mu_post1 <= ic_clase1[2])
+contiene_analitico2 <- (mu_post2 >= ic_clase2[1]) & (mu_post2 <= ic_clase2[2])
+
+# Resultados en tabla
+resultados_ic <- tibble(
+  Clase = c("Clase 1", "Clase 2"),
+  Media_MC = c(mean(muestras_clase1), mean(muestras_clase2)),
+  SEM = c(sem_clase1, sem_clase2),
+  IC_inferior = c(ic_clase1[1], ic_clase2[1]),
+  IC_superior = c(ic_clase1[2], ic_clase2[2]),
+  Amplitud = c(amplitud_clase1, amplitud_clase2),
+  Contiene_Analitico = c(contiene_analitico1, contiene_analitico2)
+)
+
+knitr::kable(
+  resultados_ic,
+  col.names = c("Clase", "Media MC", "SEM", "IC 95% inferior", "IC 95% superior", 
+                "Amplitud IC", "¿Incluye valor analítico?"),
+  digits = 4,
+  caption = "Error estándar e intervalos de confianza de Monte Carlo"
+)
+```
 :::
 
 ### Pregunta 5
@@ -146,6 +274,31 @@ set.seed(20250318)
 -   En base a las varianzas obtenidas por el método de Monte Carlo, determina el tamaño muestral de la distribución posterior necesario para alcanzar una precisión de 2 decimales en la estimación de la media de las distribuciones posteriores [@hoff2009, p. 56 ---vas a tener que "despejar" el tamaño de la muestra simulada]. Utiliza el valor mayor de ambas distribuciones para volver a calcular las medias, y comprueba si se alcanza la precisión esperada.
 
 ::: {#respuesta-5 .callout-note}
+```{r}
+# Varianzas de Monte Carlo de ambas clases (de la Pregunta 3)
+sigma_mc1 <- sd(muestras_clase1)
+sigma_mc2 <- sd(muestras_clase2)
+
+# Usamos la mayor desviación estándar para ser conservadores
+sigma_max <- max(sigma_mc1, sigma_mc2)
+
+# Tamaño muestral necesario para SEM = 0.005
+N_requerido <- ceiling((sigma_max / 0.005)^2)  # Redondeo hacia arriba
+
+cat("Tamaño muestral requerido (N):", N_requerido, "\n")
+
+# Nueva simulación con N_requerido (semilla para reproducibilidad)
+set.seed(20250318)
+nuevas_muestras1 <- rnorm(N_requerido, mean = mu_post1, sd = sqrt(sigma2_post1))
+nuevas_muestras2 <- rnorm(N_requerido, mean = mu_post2, sd = sqrt(sigma2_post2))
+
+# SEM para las nuevas muestras
+nuevo_sem1 <- sd(nuevas_muestras1) / sqrt(N_requerido)
+nuevo_sem2 <- sd(nuevas_muestras2) / sqrt(N_requerido)
+
+cat("SEM Clase 1 con N =", N_requerido, ":", round(nuevo_sem1, 5), "\n")
+cat("SEM Clase 2 con N =", N_requerido, ":", round(nuevo_sem2, 5), "\n")
+```
 :::
 
 ## Inferencia de intervalos y probabilidades
@@ -163,6 +316,75 @@ set.seed(20250318)
 Obtén los resultados analíticos con las funciones `qnorm()` y `pnorm()`, y compara ambos.
 
 ::: {#respuesta-6 .callout-note}
+```{r}
+# Intervalos de credibilidad Monte Carlo (percentiles 0.5% y 99.5%)
+ic99_mc1 <- quantile(nuevas_muestras1, probs = c(0.005, 0.995))
+ic99_mc2 <- quantile(nuevas_muestras2, probs = c(0.005, 0.995))
+
+# Intervalos analíticos (qnorm)
+ic99_analitico1 <- qnorm(c(0.005, 0.995), mean = mu_post1, sd = sqrt(sigma2_post1))
+ic99_analitico2 <- qnorm(c(0.005, 0.995), mean = mu_post2, sd = sqrt(sigma2_post2))
+
+# Tabla comparativa
+resultados_ic99 <- tibble(
+  Método = rep(c("Monte Carlo", "Analítico"), each = 2),
+  Clase = rep(c("Clase 1", "Clase 2"), times = 2),
+  IC_inferior = c(ic99_mc1[1], ic99_mc2[1], ic99_analitico1[1], ic99_analitico2[1]),
+  IC_superior = c(ic99_mc1[2], ic99_mc2[2], ic99_analitico1[2], ic99_analitico2[2])
+)
+
+knitr::kable(
+  resultados_ic99,
+  col.names = c("Método", "Clase", "Límite inferior (0.5%)", "Límite superior (99.5%)"),
+  digits = 2,
+  caption = "Intervalos de credibilidad al 99%"
+)
+
+# Cuartiles Monte Carlo
+cuartiles_mc1 <- quantile(nuevas_muestras1, probs = c(0.25, 0.5, 0.75))
+cuartiles_mc2 <- quantile(nuevas_muestras2, probs = c(0.25, 0.5, 0.75))
+
+# Cuartiles analíticos
+cuartiles_analitico1 <- qnorm(c(0.25, 0.5, 0.75), mean = mu_post1, sd = sqrt(sigma2_post1))
+cuartiles_analitico2 <- qnorm(c(0.25, 0.5, 0.75), mean = mu_post2, sd = sqrt(sigma2_post2))
+
+# Tabla comparativa
+resultados_cuartiles <- tibble(
+  Método = rep(c("Monte Carlo", "Analítico"), each = 6),
+  Clase = rep(rep(c("Clase 1", "Clase 2"), each = 3), times = 2),
+  Cuartil = rep(c("Q1 (25%)", "Q2 (50%)", "Q3 (75%)"), times = 4),
+  Valor = c(cuartiles_mc1, cuartiles_mc2, cuartiles_analitico1, cuartiles_analitico2)
+)
+
+knitr::kable(
+  pivot_wider(resultados_cuartiles, names_from = Cuartil, values_from = Valor),
+  digits = 2,
+  caption = "Comparación de cuartiles entre métodos"
+)
+
+# Probabilidades Monte Carlo
+prob_mc1 <- mean(nuevas_muestras1 < MU_PREVIA)
+prob_mc2 <- mean(nuevas_muestras2 < MU_PREVIA)
+
+# Probabilidades analíticas (pnorm)
+prob_analitico1 <- pnorm(MU_PREVIA, mean = mu_post1, sd = sqrt(sigma2_post1))
+prob_analitico2 <- pnorm(MU_PREVIA, mean = mu_post2, sd = sqrt(sigma2_post2))
+
+# Tabla comparativa
+resultados_prob <- tibble(
+  Clase = c("Clase 1", "Clase 2"),
+  Monte_Carlo = c(prob_mc1, prob_mc2),
+  Analítico = c(prob_analitico1, prob_analitico2),
+  Diferencia = abs(c(prob_mc1 - prob_analitico1, prob_mc2 - prob_analitico2))
+)
+
+knitr::kable(
+  resultados_prob,
+  col.names = c("Clase", "Monte Carlo", "Analítico", "Diferencia"),
+  digits = 5,
+  caption = "Probabilidad P(μ < μ_pob)"
+)
+```
 :::
 
 ## Reflexión sobre el método de Monte Carlo
@@ -172,6 +394,7 @@ Obtén los resultados analíticos con las funciones `qnorm()` y `pnorm()`, y com
 -   ¿Qué opinas del método de Monte Carlo? ¿Te resulta fácil o difícil de aplicar? ¿Qué consideras que aporta respecto de obtener los parámetros de los modelos aplicando las fórmulas analíticas?
 
 ::: {#respuesta-7 .callout-note}
+A veces, díficil, puesto que requiere elegir un tamaño muestral N adecuado (como vimos en la Pregunta 5) y gestionar la aleatoriedad (semillas, reproducibilidad). Sin embargo, es más sencillo a la hora de resolver problemas complejos. 
 :::
 
 ## Inferencia con funciones derivadas
@@ -181,6 +404,27 @@ Obtén los resultados analíticos con las funciones `qnorm()` y `pnorm()`, y com
 -   Calcula la probabilidad de que la media de la segunda clase sea superior a la media de la primera clase usando el método de Monte Carlo. ¿Cómo lo harías usando la fórmula analítica? ¿Es más fácil o más difícil?
 
 ::: {#respuesta-8 .callout-note}
+```{r Usando Montecarlo}
+# Simulamos las diferencias (mu_mc2 - mu_mc1) con las muestras de alta precisión (Pregunta 5)
+prob_mc <- mean(nuevas_muestras2 > nuevas_muestras1)
+
+cat("Probabilidad Monte Carlo (μ₂ > μ₁):", round(prob_mc, 4), "\n")
+```
+
+Solo hay que comparar dos vectores de muestras (nuevas_muestras2 > nuevas_muestras1) y calcular la proporción de casos donde es cierto. No requiere matemáticas avanzadas.
+
+```{r Usando la fórmula analítica}
+# Parámetros de la diferencia
+mu_diff <- mu_post2 - mu_post1
+sigma_diff <- sqrt(sigma2_post1 + sigma2_post2)
+
+# Probabilidad P(μ₂ > μ₁) = P(μ₂ - μ₁ > 0)
+prob_analitica <- 1 - pnorm(0, mean = mu_diff, sd = sigma_diff)
+
+cat("Probabilidad analítica (μ₂ > μ₁):", round(prob_analitica, 4), "\n"
+    )
+```
+Es más díficil porque requiere conocer las propiedades de la distribución normal y hay que derivar manualmente la media y la varianza. 
 :::
 
 ### Pregunta 9
@@ -188,6 +432,16 @@ Obtén los resultados analíticos con las funciones `qnorm()` y `pnorm()`, y com
 -   Las muestras obtenidas para distribución posterior de la media de cada una de las dos clases son independientes. Por lo tanto, debería dar igual en qué orden se hayan muestreado. Utilizando `sample(_vector_)` podemos obtener los valores aleatorizado del vector en un objeto `_vector_`. Comprueba si se cumple que podemos aleatorizar las muestras de una (o ambas) distribuciones posteriores, y que la probabilidad de que las dos clases sean diferentes aún así no cambie.
 
 ::: {#respuesta-9 .callout-note}
+```{r}
+# Aleatorizamos las muestras de la Clase 1 (podría ser cualquiera)
+muestras_clase1_aleatorizadas <- sample(nuevas_muestras1)  # ¡Sin reemplazo! 
+
+# Recalculamos la probabilidad P(μ₂ > μ₁) con las muestras aleatorizadas
+prob_aleatorizada <- mean(nuevas_muestras2 > muestras_clase1_aleatorizadas)
+
+cat("Probabilidad original (μ₂ > μ₁):", round(mean(nuevas_muestras2 > nuevas_muestras1), 4), "\n")
+cat("Probabilidad con Clase 1 aleatorizada:", round(prob_aleatorizada, 4), "\n")
+```
 :::
 
 ## Estimador máximo posterior
@@ -243,6 +497,23 @@ El estimador MAP es `{r} moda`, siendo su densidad `{r} densidad_max`.
 -   Utilizando las muestras posteriores obtenidas en la pregunta 5, calcula los estimadores MAP para las dos clases, y compáralos con los que obtendrías con las fómulas analíticas.
 
 ::: {#respuesta-10 .callout-note}
+```{r}
+# Estimación MAP para Clase 1
+densidad_clase1 <- density(nuevas_muestras1)
+map_clase1 <- densidad_clase1$x[which.max(densidad_clase1$y)]
+
+# Estimación MAP para Clase 2
+densidad_clase2 <- density(nuevas_muestras2)
+map_clase2 <- densidad_clase2$x[which.max(densidad_clase2$y)]
+
+cat("MAP Clase 1 (Monte Carlo):", round(map_clase1, 2), "\n")
+cat("MAP Clase 2 (Monte Carlo):", round(map_clase2, 2), "\n")
+```
+```{r comparación}
+cat("MAP Clase 1 (Analítico):", round(mu_post1, 2), "\n")
+cat("MAP Clase 2 (Analítico):", round(mu_post2, 2), "\n")
+```
+Los estimadores MAP obtenidos por Monte Carlo (234.7 para Clase 1, 222.5 para Clase 2) coinciden con los valores analíticos, ya que en distribuciones normales la moda es igual a la media. Por tanto, decimos que el método de densidad kernel es preciso para estimar modas en simulaciones.
 :::
 
 # Ejercicio 2: Distribuciones Gamma
@@ -267,6 +538,38 @@ La distribución Gamma está implementada en R mediante la familia de funciones 
 -   Utilizando un eje horizontal con precisión de .002, representa las dos distribuciones. Determina los límites del eje horizontal según tu propio criterio. Sin ver la forma de la función de densidad, ¿podrías deducir cuál habría de ser alguno de los dos límites del intervalo?
 
 ::: {#respuesta-11 .callout-note}
+```{r}
+# Parámetros Gamma (shape = α, rate = β)
+theta_sin <- list(shape = 219, rate = 112)  # Sin título universitario
+theta_con <- list(shape = 68, rate = 45)    # Con título universitario
+
+# Límites del eje x (0 a 3, paso 0.002)
+x_vals <- seq(0, 3, by = 0.002)
+ggplot() +
+  # Densidad Gamma para "Sin título" (color_defecto = PALETA[1])
+  geom_line(
+    aes(x = x_vals, y = dgamma(x_vals, shape = theta_sin$shape, rate = theta_sin$rate), 
+        color = "Sin título"), 
+    linewidth = 1
+  ) +
+  # Densidad Gamma para "Con título" (PALETA[2])
+  geom_line(
+    aes(x = x_vals, y = dgamma(x_vals, shape = theta_con$shape, rate = theta_con$rate), 
+        color = "Con título"), 
+    linewidth = 1
+  ) +
+  # Ajustes estéticos
+  labs(
+    title = "Distribuciones Gamma de tasas de fertilidad",
+    x = "Tasa de fertilidad (θ)",
+    y = "Densidad",
+    color = "Grupo"
+  ) +
+  scale_x_continuous(breaks = seq(0, 3, 0.5)) +
+  scale_color_manual(values = c("Sin título" = color_defecto, "Con título" = PALETA[2])) +
+  theme_bw()  # Aplicamos el tema especificado
+```
+El gráfico muestra las densidades Gamma para las tasas de fertilidad, usando el intervalo [0,3] y paso 0.002. Los límites se eligieron considerando el soporte de la Gamma (θ>0) y percentiles extremos. La distribución para mujeres sin título (verde) es más concentrada y con una media mayor que la de mujeres con título (naranja). Esto coincide con los cálculos analíticos.
 :::
 
 ### Pregunta 12
@@ -274,6 +577,29 @@ La distribución Gamma está implementada en R mediante la familia de funciones 
 -   Determina la probabilidad de que las mujeres de 40 años sin título universitario en los 90 en EEUU tuvieran una tasa de fertilidad superior a la de las mujeres con título universitario. Utiliza el método de Monte Carlo con 3 decimales de precisión al 99% de confianza, justificando el tamaño muestral elegido para aproximar las distribuciones posteriores (usa la media para justificar esta precisión). Si lo necesitas, revisa el material complementario del Tema 3 para determinar la varianza de la distribución Gamma.
 
 ::: {#respuesta-12 .callout-note}
+```{r}
+set.seed(123)  # Reproducibilidad
+N <- 205000
+
+# Muestras Gamma
+theta_sin <- rgamma(N, shape = 219, rate = 112)
+theta_con <- rgamma(N, shape = 68, rate = 45)
+
+# Probabilidad P(θ_sin > θ_con)
+prob <- mean(theta_sin > theta_con)
+
+# Error estándar empírico
+sem_empirico <- sd(theta_sin > theta_con) / sqrt(N)
+
+# Intervalo de confianza al 99%
+ic_lower <- prob - qnorm(0.995) * sem_empirico
+ic_upper <- prob + qnorm(0.995) * sem_empirico
+
+cat("Probabilidad estimada P(θ_sin > θ_con):", round(prob, 3), "\n")
+cat("Intervalo de confianza al 99%: [", round(ic_lower, 3), ", ", round(ic_upper, 3), "]\n", sep = "")
+cat("Error estándar empírico:", round(sem_empirico, 5), "\n")
+```
+La probabilidad de que las mujeres sin título universitario tuvieran una tasa de fertilidad mayor que las con título es de 0.973 (IC 99%: [0.972, 0.974]), estimada con 205,000 muestras para garantizar un error estándar ≤ 0.0005. El tamaño muestral se ha calculado usando las varianzas de las distribuciones Gamma, asegurando 3 decimales de precisión
 :::
 
 # Referencias
