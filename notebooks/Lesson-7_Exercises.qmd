@@ -122,8 +122,7 @@ Tal y como la lectura indica, en esta distribución sería muy sencillo obtener 
 ```{r muestrear-theta}
 # Argumento `delta`: Valor entero de δ para muestrear $p(θ|δ)$
 muestrear_theta <- function(delta) {
-  
-  # COMPLETAR AQUÍ EL CUERPO DE LA FUNCIÓN
+  rnorm(1, mean = MEDIAS[delta], sd = sd)
 }
 ```
 :::
@@ -136,8 +135,17 @@ muestrear_theta <- function(delta) {
 ```{r muestrear-delta}
 # Argumento `theta`: Valor real de θ para muestrear $p(δ|θ)$
 muestrear_delta <- function(theta) {
+  # Calculamos las probabilidades condicionales para cada valor de delta
+  prob_delta1 <- PROB_DELTA[1] * dnorm(theta, mean = MEDIAS[1], sd = sd)
+  prob_delta2 <- PROB_DELTA[2] * dnorm(theta, mean = MEDIAS[2], sd = sd) 
+  prob_delta3 <- PROB_DELTA[3] * dnorm(theta, mean = MEDIAS[3], sd = sd)
   
-  # COMPLETAR AQUÍ EL CUERPO DE LA FUNCIÓN
+  # Normalizamos las probabilidades
+  prob_total <- prob_delta1 + prob_delta2 + prob_delta3
+  prob <- c(prob_delta1, prob_delta2, prob_delta3) / prob_total
+  
+  # Muestreamos delta según las probabilidades calculadas
+  sample(1:3, size = 1, prob = prob)
 }
 ```
 :::
@@ -185,6 +193,14 @@ Solamente falta el estao inicial de la cadena.
 -   Define un objeto `estado_cadena` de tipo "tibble" para que contenga un estado inicial de la cadena de Markov que tenga una alta probabilidad de encontrarse en la distribución estacionaria. Para ello, selecciona un valor próximo a uno de los tres modos de la distribución de $θ$ y un valor adecuado de $δ$, justificando la elección de ambos.
 
 ::: {#respuesta-3 .callout-note}
+```{r}
+# Estado inicial de la cadena
+estado_cadena <- tibble(
+  theta = MEDIAS[1],  # Inicializamos theta en la primera media (-3)
+  delta = 1           # Inicializamos delta en el grupo correspondiente (1)
+)
+```
+Elegimos como estado inicial θ=−3 y δ=1 porque es uno de los valores más probables según la distribución, ya que tiene una probabilidad marginal alta (45%). Además, al poner θ en la media de su grupo y δ en el grupo correspondiente, aseguramos que el estado inicial sea coherente. Empezar en una zona de alta probabilidad ayuda a que la cadena llegue antes a la distribución que queremos.
 :::
 
 ### Pregunta 4
@@ -192,6 +208,22 @@ Solamente falta el estao inicial de la cadena.
 -   Escribe el código necesario para iterar la cadena de Markov, comenzando en el valor definido anteriormente de `estado_cadena`, y guardando los estados en el objeto `cadena_Gibbs`.
 
 ::: {#respuesta-4 .callout-note}
+```{r}
+# Inicializamos la cadena con el estado inicial
+cadena_Gibbs[1, ] <- estado_cadena
+
+# Iteramos el muestreador de Gibbs
+for (i in 2:N_GIBBS) {
+  # Obtenemos el estado anterior
+  estado_anterior <- cadena_Gibbs[i-1, ]
+  
+  # Generamos nuevo estado usando el muestreador de Gibbs
+  nuevo_estado <- itera_Gibbs(estado_anterior$theta, estado_anterior$delta)
+  
+  # Almacenamos el nuevo estado
+  cadena_Gibbs[i, ] <- nuevo_estado
+}
+```
 :::
 
 ### Pregunta 5
@@ -199,6 +231,23 @@ Solamente falta el estao inicial de la cadena.
 -   Representa la densidad de la distribución de $θ$ obtenida a partir de la cadena de Markov junto con la aproximación discreta que obtuvimos antes. Explica qué observas en el resultado.
 
 ::: {#respuesta-5 .callout-note}
+```{r}
+# Combinamos los datos de la cadena con la aproximación discreta
+comparacion <- bind_rows(
+  cadena_Gibbs |> mutate(tipo = "MCMC"),
+  densidad |> mutate(tipo = "Aprox. Discreta")
+)
+
+# Creamos el gráfico de comparación
+ggplot(comparacion, aes(x = theta, y = densidad, color = tipo)) +
+  geom_line(data = filter(comparacion, tipo == "Aprox. Discreta")) +  # Línea para la aproximación discreta
+  geom_density(data = filter(comparacion, tipo == "MCMC"), aes(y = after_stat(density))) +  # Densidad para MCMC
+  labs(title = "Comparación de distribuciones de θ",
+       x = "θ", 
+       y = "Densidad",
+       color = "Método")
+```
+En el gráfico, la aproximación discreta (línea verde) muestra picos bien definidos en -3 y 3, con un pico más bajo en 0. La distribución MCMC (línea naranja) tiene un pico más alto en -3, lo que indica que la cadena de Markov pasa más tiempo cerca de ese valor, y presenta fluctuaciones alrededor de 0. Esto es típico en el muestreo de Gibbs, donde las iteraciones son correlacionadas, lo que puede generar irregularidades o variabilidad, especialmente con un número limitado de iteraciones (1000). En general, aunque la MCMC muestra más variabilidad, está explorando correctamente la distribución multimodal, y con más iteraciones se estabilizaría más.
 :::
 
 ## Diagnósticos
@@ -210,6 +259,29 @@ Solamente falta el estao inicial de la cadena.
 *(NOTA: No olvides añadir el paquete `{coda}` en el entorno con el botón "renv" -\> "Snapshot Library...".)*
 
 ::: {#respuesta-6 .callout-note}
+```{r}
+
+if (!require("coda"))install.packages("coda")
+library(coda)
+
+# Convertir la cadena a un objeto mcmc para usar las funciones de coda
+cadena_mcmc <- mcmc(cadena_Gibbs$theta)
+
+# 1. Gráfico de autocorrelación
+autocorr_plot <- acf(cadena_Gibbs$theta, 
+                     main = "Autocorrelación de la cadena de θ", 
+                     ylab = "Autocorrelación", 
+                     plot = TRUE)
+
+# 2. Calcular tamaño muestral efectivo
+effective_size <- effectiveSize(cadena_mcmc)
+cat("Tamaño muestral efectivo:", round(effective_size, 1), "\n")
+
+# Mostrar resultados
+autocorr_plot
+```
+La gráfica muestra una autocorrelación significativa en los primeros lags. A medida que el lag aumenta, la autocorrelación disminuye, pero se mantiene relativamente alta hasta el lag 10-12.Esto es típico en cadenas MCMC e indica dependencia serial.
+El tamaño muestral efectivo es de 41.9. Esto quiere decir que, aunque tengamos 1000 muestras en la cadena, la autocorrelación entre las muestras es alta, lo que significa que las muestras no son completamente independientes entre sí.
 :::
 
 ### Pregunta 7
@@ -217,6 +289,59 @@ Solamente falta el estao inicial de la cadena.
 -   Define un objeto `cadena_Gibbs2`, de igual manera que definist `cadena_Gibbs`, y repite la pregunta 3, pero eligiendo un estado inicial en otro modo distinto. Después, genera una nueva cadena de Markov, almacenando sus estados en `cadena_Gibbs2` como en el ejercicio 4, y repite las representaciones y cálculos de los ejercicios 5 y 6.
 
 ::: {#respuesta-7 .callout-note}
+```{r}
+# Definir nuevo estado inicial en otro modo (θ = 3, δ = 3)
+estado_cadena2 <- tibble(theta = MEDIAS[3], delta = 3)
+
+# Crear objeto para almacenar la nueva cadena
+cadena_Gibbs2 <- tibble(
+  theta = numeric(N_GIBBS),
+  delta = integer(N_GIBBS)
+)
+
+# Inicializar e iterar la nueva cadena
+cadena_Gibbs2[1, ] <- estado_cadena2
+
+for (i in 2:N_GIBBS) {
+  estado_anterior <- cadena_Gibbs2[i-1, ]
+  nuevo_estado <- itera_Gibbs(estado_anterior$theta, estado_anterior$delta)
+  cadena_Gibbs2[i, ] <- nuevo_estado
+}
+
+# Combinar datos de ambas cadenas
+comparacion_completa <- bind_rows(
+  cadena_Gibbs |> mutate(Cadena = "Cadena 1 (θ₀=-3)"),
+  cadena_Gibbs2 |> mutate(Cadena = "Cadena 2 (θ₀=3)"),
+  densidad |> mutate(Cadena = "Aprox. Discreta")
+)
+
+# Gráfico comparativo
+ggplot(comparacion_completa, aes(x = theta, color = Cadena)) +
+  geom_line(data = filter(comparacion_completa, Cadena == "Aprox. Discreta"), 
+            aes(y = densidad)) +
+  geom_density(data = filter(comparacion_completa, Cadena != "Aprox. Discreta"),
+             aes(y = after_stat(density)), 
+             adjust = 1.5, linetype = "dashed") + 
+  labs(title = "Comparación de cadenas con diferentes inicializaciones",
+       x = "θ", y = "Densidad") +
+  theme_set(theme_bw())
+
+# Convertir a objeto mcmc
+cadena_mcmc2 <- mcmc(cadena_Gibbs2$theta)
+
+# Autocorrelación
+autocorr_plot2 <- acf(cadena_Gibbs2$theta, 
+                 main = "Autocorrelación - Cadena 2 (θ₀=3)", 
+                 ylab = "Autocorrelación")
+
+# Tamaño muestral efectivo
+effective_size2 <- effectiveSize(cadena_mcmc2)
+cat("Tamaño muestral efectivo (Cadena 2):", round(effective_size2, 1), "\n")
+
+# Mostrar resultados
+autocorr_plot2
+```
+La cadena de Markov tiene un tamaño muestral efectivo muy bajo (6,5), lo que sugiere una autocorrelación alta y una exploración ineficiente del espacio de parámetros. Las autocorrelaciones permanecen elevadas incluso a grandes distancias, lo que indica que la cadena no está explorando adecuadamente las diferentes regiones del espacio de parámetros y que podría estar "atascada". Esto puede deberse a una mala mezcla del muestreador de Gibbs, posiblemente por la existencia de barreras altas entre los modos o hiperparámetros mal especificados. Como consecuencia, las estimaciones obtenidas serían imprecisas, potencialmente sesgadas y los intervalos de credibilidad no serían confiables.
 :::
 
 ### Pregunta 8
@@ -230,12 +355,18 @@ Solamente falta el estao inicial de la cadena.
 theta_Gibbs <- list(
   theta_Gibbs_1 = cadena_Gibbs  |> pull(theta) |> as.mcmc(),
   theta_Gibbs_2 = cadena_Gibbs2 |> pull(theta) |> as.mcmc()
-)
+) |> as.mcmc.list()
 
-# COMPLETAR AQUÍ EL CÓDIGO FALTANTE PARA CALCULAR $R$
+# Calcular diagnóstico de Gelman-Rubin
+gelman_result <- gelman.diag(theta_Gibbs)
+cat("Estadístico R de Gelman-Rubin:\n")
+print(gelman_result)
 
+# Extraer el valor puntual del R-hat
+r_hat <- gelman_result$psrf[1]
+cat("\nValor de R-hat:", round(r_hat, 4), "\n")
 ```
-
+El valor R-hat y el intervalo de confianza amplio indican que aún no se ha alcanzado la convergencia en las cadenas de Markov. Es posible que sea necesario aumentar el número de iteraciones o explorar el uso de otras técnicas para mejorar la convergencia. Las cadenas están muestreando distribuciones completamente diferentes.
 :::
 
 ### Pregunta 9
@@ -246,11 +377,74 @@ theta_Gibbs <- list(
 
 ::: {#respuesta-9 .callout-note}
 ```{r muestrear-Gibbs-100000}
-#| cache: true # Guarda los resultados para no tener que ejecutar el "chunk"
-               #   cada vez que se renderiza el notebook.
+#| cache: true
 
-# ESCRIBE A CONTINUACIÓN EL CÓDIGO PARA EJECUTAR EL MUESTREADOR DE GIBBS
+# Definir parámetros para cadenas largas
+N_GIBBS_LONG <- 100000
 
+# Crear objetos para almacenar las cadenas largas
+cadena_Gibbs_long1 <- tibble(theta = numeric(N_GIBBS_LONG), delta = integer(N_GIBBS_LONG))
+cadena_Gibbs_long2 <- tibble(theta = numeric(N_GIBBS_LONG), delta = integer(N_GIBBS_LONG))
+
+# Definir estados iniciales (usando los mismos modos que antes)
+estado_inicial_long1 <- tibble(theta = MEDIAS[1], delta = 1)  # Modo en θ = -3
+estado_inicial_long2 <- tibble(theta = MEDIAS[3], delta = 3)  # Modo en θ = 3
+
+# Inicializar e iterar primera cadena larga
+cadena_Gibbs_long1[1, ] <- estado_inicial_long1
+for (i in 2:N_GIBBS_LONG) {
+  estado_anterior <- cadena_Gibbs_long1[i-1, ]
+  nuevo_estado <- itera_Gibbs(estado_anterior$theta, estado_anterior$delta)
+  cadena_Gibbs_long1[i, ] <- nuevo_estado
+}
+
+# Inicializar e iterar segunda cadena larga
+cadena_Gibbs_long2[1, ] <- estado_inicial_long2
+for (i in 2:N_GIBBS_LONG) {
+  estado_anterior <- cadena_Gibbs_long2[i-1, ]
+  nuevo_estado <- itera_Gibbs(estado_anterior$theta, estado_anterior$delta)
+  cadena_Gibbs_long2[i, ] <- nuevo_estado
+}
+
+# Ejercicio 5: Comparación de distribuciones
+comparacion_long <- bind_rows(
+  cadena_Gibbs_long1 |> mutate(Cadena = "Cadena Larga 1 (θ₀=-3)"),
+  cadena_Gibbs_long2 |> mutate(Cadena = "Cadena Larga 2 (θ₀=3)"),
+  densidad |> mutate(Cadena = "Aprox. Discreta")
+)
+
+ggplot(comparacion_long, aes(x = theta, color = Cadena)) +
+  geom_line(data = filter(comparacion_long, Cadena == "Aprox. Discreta"), 
+            aes(y = densidad), linewidth = 1) +
+  geom_density(data = filter(comparacion_long, Cadena != "Aprox. Discreta"),
+             aes(y = after_stat(density)), 
+             adjust = 1.5, linewidth = 0.7) +
+ theme_set(theme_bw())
+
+# Ejercicio 6: Diagnósticos para cadenas largas
+cat("\n=== Diagnósticos Cadena Larga 1 ===\n")
+cadena_mcmc_long1 <- mcmc(cadena_Gibbs_long1$theta)
+acf(cadena_Gibbs_long1$theta, 
+    main = "Autocorrelación - Cadena Larga 1 (θ₀=-3)",
+    ylab = "Autocorrelación")
+cat("Tamaño muestral efectivo:", effectiveSize(cadena_mcmc_long1), "\n")
+
+cat("\n=== Diagnósticos Cadena Larga 2 ===\n") 
+cadena_mcmc_long2 <- mcmc(cadena_Gibbs_long2$theta)
+acf(cadena_Gibbs_long2$theta,
+    main = "Autocorrelación - Cadena Larga 2 (θ₀=3)",
+    ylab = "Autocorrelación")
+cat("Tamaño muestral efectivo:", effectiveSize(cadena_mcmc_long2), "\n")
+
+# Ejercicio 8: Gelman-Rubin (se mantiene igual)
+theta_Gibbs_long <- as.mcmc.list(list(
+  as.mcmc(cadena_Gibbs_long1$theta),
+  as.mcmc(cadena_Gibbs_long2$theta)
+))
+
+gelman_long <- gelman.diag(theta_Gibbs_long)
+cat("\n=== Diagnóstico Gelman-Rubin para cadenas largas ===\n")
+print(gelman_long)
 ```
 
 :::
@@ -260,6 +454,7 @@ theta_Gibbs <- list(
 -   La pregunta 8 demuestra el uso del estadístico de convergencia de Gelman-Rubin para cadenas de Markov, pero hace una serie de supuestos que no siempre se cumplen. En base a la ayuda de `gelman.diag()`, ¿cómo interpretarías los resultados del estadístico $R$ obtenidos en estos casos? ¿Qué crees que ocurriría si lo calculamos con dos (o más) cadenas que convergen "parcialmente" a uno de los modos de la distribución únicamente?
 
 ::: {#respuesta-10 .callout-note}
+El diagnóstico R de Gelman-Rubin permite evaluar la convergencia de las cadenas de Markov, pero tiene limitaciones. Si las cadenas convergen solo parcialmente a un modo, R puede indicar falsa convergencia, mostrando un valor bajo aunque no se haya explorado toda la distribución. Si las cadenas convergen a modos diferentes, R será alto, lo que indica falta de convergencia. Es importante usar múltiples cadenas, inicializadas en diferentes puntos, y complementar RR con gráficos y otras medidas como el tamaño muestral efectivo.
 :::
 
 ## Distribución estacionaria
@@ -269,6 +464,74 @@ theta_Gibbs <- list(
 -   Si crees que las cadenas en la pregunta 9 no han convergido satisfactoriamente a la distribución estacionaria, vuelve a ejecutarlas (quizá con mayor longitud) hasta obtener una convergencia sastisfactoria. Si consideras la convergencia de las cadenas satisfactoria (o una vez la consideres satisfactoria), colapsa los estados de ambas cadenas en un solo "data.frame" y obtén la densidad de $θ$ con las muestras de ambas cadenas.
 
 ::: {#respuesta-11 .callout-note}
+```{r}
+#| cache: true
+#| message: false
+
+# 1. Aumentar longitud a 1,000,000 iteraciones con thinning
+N_MEJORADO <- 1000000
+THIN <- 100  # Guardar cada 100 muestras
+
+cadena_mejorada1 <- tibble(theta = numeric(N_MEJORADO/THIN), delta = integer(N_MEJORADO/THIN))
+cadena_mejorada2 <- tibble(theta = numeric(N_MEJORADO/THIN), delta = integer(N_MEJORADO/THIN))
+
+# Inicialización
+cadena_mejorada1[1, ] <- tibble(theta = MEDIAS[1], delta = 1)
+cadena_mejorada2[1, ] <- tibble(theta = MEDIAS[3], delta = 3)
+
+# Muestreo con thinning
+for (i in 2:(N_MEJORADO/THIN)) {
+  estado_temp <- cadena_mejorada1[i-1, ]
+  for (j in 1:THIN) {
+    estado_temp <- itera_Gibbs(estado_temp$theta, estado_temp$delta)
+  }
+  cadena_mejorada1[i, ] <- estado_temp
+  
+  estado_temp <- cadena_mejorada2[i-1, ]
+  for (j in 1:THIN) {
+    estado_temp <- itera_Gibbs(estado_temp$theta, estado_temp$delta)
+  }
+  cadena_mejorada2[i, ] <- estado_temp
+}
+
+# Diagnósticos mejorados
+cat("=== Diagnósticos Mejorados ===\n")
+mcmc_mejorado1 <- as.mcmc(cadena_mejorada1$theta)
+mcmc_mejorado2 <- as.mcmc(cadena_mejorada2$theta)
+
+cat("\nCadena 1:\n")
+print(acf(cadena_mejorada1$theta, main = "Cadena Mejorada 1"))
+cat("ESS:", effectiveSize(mcmc_mejorado1), "\n")
+
+cat("\nCadena 2:\n") 
+print(acf(cadena_mejorada2$theta, main = "Cadena Mejorada 2"))
+cat("ESS:", effectiveSize(mcmc_mejorado2), "\n")
+
+gelman_mejorado <- gelman.diag(as.mcmc.list(list(mcmc_mejorado1, mcmc_mejorado2)))
+cat("\nGelman-Rubin R-hat:", gelman_mejorado$psrf[1], "\n")
+```
+Los resultados muestran una mejora significativa en el comportamiento de la cadena de Markov tras las modificaciones. La autocorrelación ha disminuido bastante, con valores cercanos a cero a partir del lag 10, lo que sugiere que la cadena se mezcla mejor y explora de forma más eficiente el espacio de parámetros. El tamaño muestral efectivo (ESS) es alto (> 1000 por cadena), lo que indica que las muestras son bastante independientes y aptas para hacer inferencias. Además, el diagnóstico de Gelman-Rubin (R-hat = 1) confirma que las cadenas han convergido correctamente, lo que respalda las estimaciones obtenidas para θ.
+
+```{r}
+# Combinar cadenas
+muestras_finales <- bind_rows(
+  cadena_mejorada1 |> mutate(Cadena = "Mejorada 1"),
+  cadena_mejorada2 |> mutate(Cadena = "Mejorada 2")
+)
+
+# Densidad combinada
+ggplot(muestras_finales, aes(x = theta)) +
+  geom_density(aes(color = "MCMC Combinado"), linewidth = 1) +
+  geom_line(data = densidad, aes(y = densidad, color = "Teórica"), linewidth = 1) +
+  labs(title = "Distribución Posterior de θ (Cadenas Mejoradas)",
+       x = "θ", y = "Densidad") +
+  theme_set(theme_bw())
+
+cat("=== Estadísticas Finales ===\n")
+cat("Muestras totales:", nrow(muestras_finales), "\n")
+cat("ESS combinado:", effectiveSize(as.mcmc(muestras_finales$theta)), "\n")
+```
+El ESS combinado de 3,269 es suficientemente grande para realizar inferencias fiables, lo que significa que las cadenas proporcionan muestras representativas de la distribución. En general, los resultados son satisfactorios y permiten confiar en las estimaciones.
 :::
 
 # Ejercicio 2: Ajuste de un modelo en Stan {#ejercicio-2}
@@ -299,6 +562,21 @@ Asegúrate de familiarizarte con el ejemplo, ya que lo utilizaremos en este ejer
 *(NOTA: No olvides añadir el paquete `{mcmc}` al entorno.)*
 
 ::: {#respuesta-12 .callout-note}
+```{r}
+install.packages(c("StanHeaders", "rstan"), type = "source")
+
+# Cargar el paquete y los datos
+library(mcmc)
+data(logit)
+
+# Exploración básica
+str(logit)
+head(logit)
+summary(logit)
+```
+El dataset es un conjunto de datos simulados. Contiene 100 observaciones y 5 variables. 
+'Y' es la variable dependiente binaria/dicotómica (0 o 1).  
+'x1', 'x2', 'x3', 'x4' son las variables explicativas, es decir, las que ayudan a predecir si 'y' será 0 o 1. 
 :::
 
 ### Pregunta 13
@@ -306,6 +584,25 @@ Asegúrate de familiarizarte con el ejemplo, ya que lo utilizaremos en este ejer
 -   Utiliza el código proporcionado por el autor para ajustar el modelo lineal general con los datos y especificaciones del propio autor (p. 30) en un marco frecuentista. Comenta brevemente los resultados.
 
 ::: {#respuesta-13 .callout-note}
+```{r}
+# Cargar datos y ajustar modelo GLM
+library(mcmc)
+data(logit)
+
+# Modelo frecuentista
+modelo_freq <- glm(y ~ x1 + x2 + x3 + x4, 
+                   data = logit,
+                   family = binomial(),
+                   x = TRUE)  # x=TRUE para guardar matriz de diseño
+
+# Resumen de resultados
+summary(modelo_freq)
+
+```
+'x1' y 'x2' son significativamente positivos con valores p menores a 0.05. Es decir, tienen un impacto estadísticamente significativo sobre la variable dependiente 'y'.
+'x3' y 'x4' no son significativos. 
+La devianza nula (137.628) y la devianza residual (87.668) indican que el modelo ajusta mejor que un modelo nulo (sin predictores).
+El modelo frecuentista asume que el muestreo es infinito y usa la verosimilitud para hacer inferencias, mientras que el modelo Bayesiano utiliza una distribución posterior y un prior (información previa). El modelo frecuentista tiene limitaciones: no puede manejar distribuciones multimodales ni tiene en cuenta la incertidumbre en los parámetros, algo que sí hace el enfoque Bayesiano.
 :::
 
 ## Especificación en Stan
@@ -314,6 +611,7 @@ El [archivo "src/geyer_2011_logistic.stan"](src/geyer_2011_logistic.stan) contie
 
 La sintaxis de R a continuación ejecuta el modelo usando el paquete [`{rstan}`](https://cran.r-project.org/package=rstan).
 Consulta la [guía de usuario de Stan](https://mc-stan.org/docs/2_36/stan-users-guide/) para familiarizarte con esta sintaxis.
+
 
 ```{r ajustar-modelo-Stan}
 #| cache: true
@@ -332,7 +630,7 @@ datos_logit <- list(
 
 # Ajustar el modelo
 fit_logit_stan <- stan(
-  file   = "../src/geyer_2011_logistic.stan",
+  file   = "C:/Users/annas/Desktop/Workspace/Ejercicios-ABD/src/geyer_2011_logistic.stan",
   iter   = 1000L,
   chains =    4L,
   data   = datos_logit
@@ -344,6 +642,20 @@ fit_logit_stan <- stan(
 -   Fíjate en la sección `data` (líneas 2-7) en el modelo de Stan. En base a esto, explica la estructura del objeto `datos_logit`.
 
 ::: {#respuesta-14 .callout-note}
+int<lower=0> N
+N es el número de observaciones. 
+<lower=0> asegura que N no pueda ser negativo.
+
+int<lower=0> K
+K es el número de variables predictoras (si tengo, X1, X2, X3 y X4, entonces k=4)
+<lower=0> evita valores negativos.
+
+matrix[N, K] x
+Es una matriz de N filas y K columnas, que contiene los valores de las variables predictoras. Cada fila representa una observación y cada columna es un predictor.
+
+array[N] int<lower=0, upper=1> y
+Y es un vector binario de respuesta con valores entre 0 y 1.
+<lower=0, upper=1> asegura que sólo haya valores 0 o 1. 
 :::
 
 ### Pregunta 15
@@ -356,6 +668,15 @@ fit_logit_stan <- stan(
 Explica también qué significan los valores e la columna `se_mean` y cómo se interpretan.
 
 ::: {#respuesta-15 .callout-note}
+```{r}
+fit_logit_stan
+print(fit_logit_stan)
+```
+Inference for Stan model: anon_model: Indica que se trata de inferencia para un modelo Stan sin nombre específico ("anon_model").
+4 chains, each with iter=1000; warmup=500; thin=1: Se ejecutaron 4 cadenas de Markov independientes. Cada cadena tuvo 1000 iteraciones en total. Las primeras 500 iteraciones de cada cadena fueron de "warmup", que se descartan. No se aplicó "thinning" (submuestreo), se guardaron todas las iteraciones posteriores al warmup 
+post-warmup draws per chain=500, total post-warmup draws=2000: Después de descartar el warmup, quedan 500 muestras por cadena. Con 4 cadenas, el total es 2000 muestras para inferencia.
+
+La columna se_mean es el error estándar de la media estimada para cada parámetro del modelo. Se podría decir que cuantifica la incertidumbre. Si el valor de se_mean es grande, la estimación tiene más incertidumbre y las muestras de la media del parámetro pueden variar más. Se necesitarán más iteraciones. En cambio, cuanto más pequeño, más preciso. 
 :::
 
 ### Pregunta 16
@@ -363,6 +684,7 @@ Explica también qué significan los valores e la columna `se_mean` y cómo se i
 -   Explica cómo se diferencian las especificaciones del algoritmo en Stan anterior de las utilizadas por @geyer2011, en cuanto a número de cadenas, iteraciones, "burn-in", "thinning", y valores iniciales de las cadenas.
 
 ::: {#respuesta-16 .callout-note}
+Stan usa 4 cadenas, Greyer una sola cadena larga. Stan utiliza 1000 iteraciones por cadena y Greyer confía en empezar en una buena posición. En Stan, se usa una fase de "warmup" de 500 iteraciones y no se aplica "thinning". En Geyer, no hay necesidad de un "burn-in" si se parte de un buen punto inicial. El algoritmo usado por Stan, produce muestras de baja autocorrelación de manera eficiente, por lo que no es necesario hacer thinning. En el caso de Geyer, se aplican lotes de 100 iteraciones. Esto implica dividir las muestras en bloques de 100. Luego, se calcula la media de cada bloque y se utiliza esta información para estimar el error estándar de la media. En Stan, la inicialización de las cadenas se hace automáticamente, mientras que Greyer inicia en el estimador de máxima verosimilitud.
 :::
 
 ### Pregunta 17
@@ -370,6 +692,8 @@ Explica también qué significan los valores e la columna `se_mean` y cómo se i
 -   ¿Podrías decir que las muestras del modelo aproximado con Stan representan adecuadamente la distribución posterior de los parámetros del modelo? ¿En qué te basas para afirmar / refutar que es así?
 
 ::: {#respuesta-17 .callout-note}
+Sí, puesto que todos los parámetros (alpha, beta[1], beta [2]...) tienen un Rhat igual a 1, lo que quiere decir que las 4 cadenas han convergido a la misma distribución, sin discrepancias entre ellas.
+Además, los valores de n_eff son altos, lo que significa que las muestras son útiles y no están muy correlacionadas entre sí. También, el error estándar es bajo, así que las estimaciones son bastante precisas.
 :::
 
 ## Interpretación del modelo
@@ -379,6 +703,9 @@ Explica también qué significan los valores e la columna `se_mean` y cómo se i
 -   Compara los resultados de ajustar el modelo en Stan con los del modelo frecuentista en el objeto `out`. ¿Qué parámetro equivale a cada cuál, y cómo son los valores?
 
 ::: {#respuesta-18 .callout-note}
+En ambos modelos, Stan y el frecuentista, se están estimando los mismos parámetros: el intercepto (alpha) y los coeficientes de las variables predictoras (beta[1], beta[2], beta[3], beta[4]).
+Los valores que se obtienen en Stan son medias de las distribuciones posteriores, mientras que el modelo frecuentista solo da un valor puntual para los coeficientes. La diferencia clave es que Stan también proporciona un intervalo de incertidumbre para cada parámetro, que te ayuda a entender mejor la variabilidad de las estimaciones.
+Los valores Rhat = 1 y n_eff > 1000 en Stan indican que las cadenas de Markov han llegado a una solución estable, lo que significa que el modelo ha convergido correctamente. El modelo frecuentista no necesita estos diagnósticos porque asume que, con suficiente muestra, los estimadores serán aproximadamente normales (estables).
 :::
 
 ### Pregunta 19
@@ -388,6 +715,20 @@ Explica también qué significan los valores e la columna `se_mean` y cómo se i
 *(NOTA: Este método devuelve un objeto de clase "ggplot", por lo que puedes usar cualquier función de `{ggplot2}` para dar formato y estilo a la salida gráfica si quieres.)*
 
 ::: {#respuesta-19 .callout-note}
+```{r}
+stan_plot <- plot(fit_logit_stan, 
+                  pars = c("alpha", "beta"), # Parámetros a incluir
+                  show_density = TRUE,       # Mostrar densidad posterior
+                  ci_level = 0.89)           # Intervalo creíble 
+
+# Gráfico
+stan_plot + 
+  ggtitle("Distribuciones posteriores de los parámetros") +
+  theme_set(theme_bw())
+```
+En este gráfico se muestra las distribuciones posteriores de los parámetros del modelo, en este caso, alpha (el intercepto) y beta (los coeficientes de las variables predictoras).
+Para cada parámetro, vemos una curva que muestra todos los posibles valores que ese parámetro podría tener, según lo que los datos nos dicen y lo que asumimos en las priors. Si la curva es ancha, quiere decir que estamos menos seguros sobre el valor del parámetro, hay más incertidumbre. Si la curva es más estrecha, significa que estamos más seguros sobre el valor del parámetro, porque hay menos incertidumbre.
+Ojo: la variable asociada a beta[3] podría no tener un efecto significativo en el modelo, ya que cero está dentro del rango de valores posibles para ese parámetro en la distribución posterior.
 :::
 
 ### Pregunta 20
@@ -395,6 +736,23 @@ Explica también qué significan los valores e la columna `se_mean` y cómo se i
 -   El paquete [`{bayesplot}`](https://cran.r-project.org/package=bayesplot) proporciona gran variedad de funciones construidas sobre `{ggplot2}` para representar cadenas de Markov, distribuciones posteriores, etc. a partir de la salida de Stan. Revisa la ayuda del paquete y averigua cómo representar el "trazado" de las cadenas de Markov y las distribuciones posteriores de los parámetros e interpreta las salidas.
 
 ::: {#respuesta-20 .callout-note}
+```{r}
+install.packages("bayesplot", repos = "https://cloud.r-project.org")
+
+library(bayesplot)
+
+# Extraer muestras posteriores como array
+posterior_samples <- as.array(fit_logit_stan)
+
+# Trazas de las cadenas para alpha y beta
+mcmc_trace(posterior_samples, 
+           pars = c("alpha", "beta[1]", "beta[2]", "beta[3]", "beta[4]"), # Parámetros a incluir
+           facet_args = list(ncol = 1),  # Organización de los subgráficos
+           size = 0.3) +                 # Grosor de las líneas
+  ggtitle("Trazas de las cadenas de Markov") +
+  theme_set(theme_bw())
+```
+Las trazas muestran cómo evolucionan las cadenas de Markov para cada parámetro (alpha y betas). Se ve que las cadenas oscilan bien y están mezcladas, sin quedarse pegadas ni separadas. Eso indica que las cadenas han convergido y que están explorando bien la distribución posterior. No hay patrones raros ni zonas planas. Por tanto, las muestras que obtenemos son fiables para hacer inferencias.
 :::
 
 ## Salidas adicionales en Stan
@@ -410,6 +768,38 @@ Fíjate en la sección [`generated quantities`](https://mc-stan.org/docs/referen
 -   Añade a la sección `generated quantities` del modelo en Stan el código necesario para que genere un valor real llamado `alpha_2`, con el valor al cuadrado de `alpha`, y un vector llamado `beta_2` con los valores al cuadrado de `beta`. Ayúdate de la [referencia de Stan sobre funciones reales](https://mc-stan.org/docs/functions-reference/real-valued_basic_functions.html). Después ejecuta el modelo en Stan de nuevo y comprueba si la salida ha generado los nuevos valores correctamente. Representa las distribuciones de estos nuevos valores.
 
 ::: {#respuesta-21 .callout-note}
+```{r}
+# Datos de entrada al modelo
+datos_logit <- list(
+  y = logit |> pull(y),
+  x = logit |> select(starts_with('x')),
+  N = nrow(logit),
+  K = ncol(logit) - 1L
+)
+
+fit_logit_stan <- stan(
+  file   = "C:/Users/annas/Desktop/Workspace/Ejercicios-ABD/src/geyer_2011_logistic.stan",  # archivo con el modelo .stan
+  iter   = 1000L,  # número de iteraciones
+  chains = 4L,     # número de cadenas de Markov
+  data   = datos_logit  # datos que se pasan al modelo
+)
+
+fit_logit_stan
+print(fit_logit_stan)
+
+stan_plot <- plot(fit_logit_stan, 
+                  pars = c("alpha_2", "beta_2"), # Parámetros a incluir
+                  show_density = TRUE,       # Mostrar densidad posterior
+                  ci_level = 0.89)           # Intervalo creíble 
+
+# Gráfico
+stan_plot + 
+  ggtitle("Distribuciones posteriores de los parámetros") +
+  theme_set(theme_bw())
+```
+La salida muestra que se han generado correctamente: alpha_2 tiene una media de 0.52 y los valores de beta_2 corresponden a los cuadrados de los coeficientes beta.
+Todos los parámetros presentan buena convergencia (Rhat ≈ 1) y tamaños efectivos (n_eff) altos.
+He intentado representar estas distribuciones gráficamente, aunque algunas aparecen truncadas en los gráficos por el límite del eje X... He intentado ajustar los límites con xlim() pero no ha surtido efecto.
 :::
 
 # Referencias
