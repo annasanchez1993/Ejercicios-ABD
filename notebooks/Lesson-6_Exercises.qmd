@@ -104,6 +104,39 @@ Como en temas anteriores, vamos a utilizar una distribución no informativa para
 -   Aproxima la distribución previa de $\theta$ por el método de Monte Carlo de manera que el valor esperado tenga una precisión de 0.01 con el 99% de probabilidad. Comprueba que la media y varianza se aproximan a los valores teóricos y representa la distribución resultante.
 
 ::: {#respuesta-1 .callout-note}
+Queremos estimar E[θ] con error estándar ≤ 0.01 al 99% de confianza.
+Varianza teórica de Beta(1,1): 1/12 ≈ 0.0833
+Desviación estándar (σ) = sqrt(1/12) ≈ 0.2887
+El margen de error para un IC del 99% es:
+ME = z * (σ/sqrt(N)) ≤ 0.01
+Donde z = qnorm(0.995) ≈ 2.576
+Despejando N:
+N ≥ (z * σ / 0.01)^2 ≈ (2.576 * 0.2887 / 0.01)^2 ≈ 5530
+Usamos N=6000 por seguridad.
+
+```{r}
+N <- 6000
+theta_mc <- rbeta(N, 1, 1)  # Muestras de Beta(1,1)
+
+# Media y varianza estimadas
+media_mc <- mean(theta_mc)
+var_mc <- var(theta_mc)
+
+#Gráfico de la distribución media
+cat("Media Monte Carlo:", round(media_mc, 4), "(Teórica: 0.5)\n")
+cat("Varianza Monte Carlo:", round(var_mc, 4), "(Teórica: 0.0833)\n")
+ggplot() +
+  geom_density(aes(theta_mc), color = color_defecto, size = 1) +  # Usamos color_defecto para la línea
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = color_defecto) +  # Línea de referencia
+  labs(title = "Distribución previa Beta(1,1) aproximada por Monte Carlo",
+       x = "Tasa de aceptación (θ)", y = "Densidad") +
+  scale_x_continuous(limits = c(0, 1))
+
+sem_empirico <- sd(theta_mc) / sqrt(N)
+margen_error <- qnorm(0.995) * sem_empirico
+cat("Error estándar empírico:", round(sem_empirico, 4), "(Objetivo: ≤ 0.01)\n")
+cat("Margen de error al 99%:", round(margen_error, 4), "(Objetivo: ≤ 0.01)\n")
+```
 :::
 
 ### Pregunta 2
@@ -111,6 +144,46 @@ Como en temas anteriores, vamos a utilizar una distribución no informativa para
 -   A partir de la distribución previa simulada de $\theta$, simula los resultados de pruebas binomiales para la primera muestra del estudio. (Ten en cuenta que debe tener el tamaño muestral correspondiente). Representa la distribución predictiva previa resultante e interprétala.
 
 ::: {#respuesta-2 .callout-note}
+```{r}
+n_muestra1 <- nrow(aceptacion_muestra_1)  # n = 22
+
+#Simulamos datos binomiales
+y_rep_prev <- rbinom(n = length(theta_mc), size = n_muestra1, prob = theta_mc)
+
+ggplot() +
+  geom_bar(
+    aes(x = y_rep_prev, y = after_stat(prop)), 
+    fill = color_defecto, alpha = 0.7, width = 0.8
+  ) +
+  labs(
+    title = "Distribución Predictiva Previa (Beta(1,1) + Binomial)",
+    x = "Número de éxitos (usuarios que aceptan) en n=22",
+    y = "Probabilidad"
+  ) +
+  scale_x_continuous(breaks = 0:n_muestra1)
+```
+Cada resultado binomial (k éxitos) tiene probabilidad 1/23 = 0.0435. 
+
+```{r}
+# Media teórica: 
+# E[y_rep] = n * E[theta]
+# E[theta] = alpha / (alpha + beta) = 1 / (1 + 1) = 0.5
+# Entonces, media teórica es: E[y_rep] = 22 * 0.5 = 11
+
+# Varianza teórica:
+# Var[y_rep] = n * E[theta] * (1 - E[theta]) + n * (n - 1) * Var[theta]
+# Var[theta] = (alpha * beta) / ((alpha + beta)^2 * (alpha + beta + 1)) = 1 / 6 = 0.1667
+# Entonces, varianza teórica es: Var[y_rep] = 22 * 0.5 * 0.5 + 22 * (22 - 1) * 0.1667 = 5.5 + 38.5 = 44
+
+cat(
+  "Media predictiva previa:", round(mean(y_rep_prev), 2), 
+  "(Teórica: 11)\n",
+  "Varianza predictiva previa:", round(var(y_rep_prev), 2), 
+  "(Teórica: 44)\n"
+)
+```
+La media y varianza de la distribución predictiva previa son razonablemente consistentes con los valores teóricos esperados. 
+El valor-p bajo = 0,043 sugiere que la tasa real de aceptación podría ser mayor que lo inicialmente asumido.
 :::
 
 ### Pregunta 3
@@ -118,6 +191,31 @@ Como en temas anteriores, vamos a utilizar una distribución no informativa para
 -   Utilizando la distribución predictiva previa de la pregunta anterior, calcula en qué centil se encuentra la primera muestra empírica del estudio de aceptación. ¿Cuál es la probabilidad de obtener un valor igual o mayor que este? ¿Y un valor igual o menor?
 
 ::: {#respuesta-3 .callout-note}
+```{r}
+y_obs <- sum(aceptacion_muestra_1$resp_descarga_app == "Si")  # 16 éxitos
+
+prob_mayor_o_igual <- mean(y_rep_prev >= y_obs)
+prob_menor_o_igual <- mean(y_rep_prev <= y_obs)
+
+#Según Ross (2022), pág. 117
+# Sacamos los valores distintos que han salido en las simulaciones, ordenados
+valores_unicos <- sort(unique(y_rep_prev))
+# Calculamos la CDF empírica
+cdf <- ecdf(y_rep_prev)(valores_unicos)
+# El centil exacto es el valor donde P(Y ≤ y_obs)
+centil_exacto <- cdf[max(which(valores_unicos <= y_obs))]
+centil_exacto
+
+centil <- mean(y_rep_prev <= y_obs)  # P(Y_rep ≤ 16)
+
+cat(
+  "Centil de los datos observados:", round(centil, 4), "%\n", 
+  "Probabilidad de obtener un valor igual o mayor que 16:", round(prob_mayor_o_igual, 4), "\n",
+  "Probabilidad de obtener un valor igual o menor que 16:", round(prob_menor_o_igual, 4), "\n"
+)
+```
+La probabilidad de obtener un valor igual o menor que 16 éxitos bajo la distribución predictiva previa es del `{r} round(centil*100, 2)`%. Esto significa que, en el `{r} round(centil*100, 2)`% de las simulaciones de la distribución predictiva previa, el número de éxitos es menor o igual a 16.
+
 :::
 
 ## Distribución predictiva posterior
@@ -127,6 +225,49 @@ Como en temas anteriores, vamos a utilizar una distribución no informativa para
 -   Utiliza el mismo nº de muestras de Monte Carlo de la distribución previa para aproximar la distribución posterior de $\theta$. (Utiliza la propiedad ya conocida de la conjugación para muestrear de la distribución posterior). Representa la distribución posterior obtenida.
 
 ::: {#respuesta-4 .callout-note}
+```{r}
+# Muestras de la posterior Beta(17,7) usando las mismas semillas
+theta_post_mc <- rbeta(N, 17, 7)
+
+# Media y varianza teóricas de Beta(17,7)
+media_teorica_post <- 17 / (17 + 7)   # ≈ 0.708
+var_teorica_post <- (17 * 7) / ((17 + 7)^2 * (17 + 7 + 1))  # ≈ 0.0082
+
+# Verificación con Monte Carlo
+cat(
+  "Media posterior (MC):", round(mean(theta_post_mc), 3), "(Teórica: 0.708)\n",
+  "Varianza posterior (MC):", round(var(theta_post_mc), 5), "(Teórica: 0.0082)\n"
+)
+
+ggplot() +
+  geom_density(aes(theta_post_mc), fill = color_defecto, alpha = 0.5) +
+  geom_vline(xintercept = media_teorica_post, linetype = "dashed", color = color_defecto) +
+  labs(
+    title = "Distribución Posterior de θ (Beta(17,7))",
+    subtitle = "Actualización conjugada de Beta(1,1) con 16 éxitos en 22 ensayos",
+    x = "Tasa de aceptación (θ)",
+    y = "Densidad"
+  ) +
+  scale_x_continuous(limits = c(0, 1))
+
+quantile(theta_post_mc, probs = c(0.025, 0.975))  # ≈ [0.53, 0.85]
+
+#Distribución predictiva posterior
+y_rep_post <- rbinom(length(theta_post_mc), size = 22, prob = theta_post_mc)
+
+ggplot() +
+  geom_bar(aes(x = y_rep_post, y = after_stat(prop)), 
+           fill = color_defecto, alpha = 0.7, width = 0.8) +
+  geom_vline(xintercept = 16, color = color_defecto, linetype = "dashed") +
+  labs(
+    title = "Distribución Predictiva Posterior",
+    x = "Número de éxitos en 22 ensayos",
+    y = "Probabilidad"
+  ) +
+  scale_x_continuous(breaks = seq(0, 22, 2))
+```
+La distribución posterior de θ es una Beta(17,7) con media 0.708 e intervalo de credibilidad 95% [0.521, 0.868]. Esto sugiere una tasa de aceptación estimada del 71%. La distribución predictiva posterior ahora explica de manera más precisa los datos, a diferencia de la predictiva previa. La posterior Beta(17,7) refleja el aprendizaje a partir de los datos, moviendo la estimación inicial de θ (que era del 50% con la previa Beta(1,1)) a un 71%.
+
 :::
 
 ### Pregunta 5
@@ -134,6 +275,29 @@ Como en temas anteriores, vamos a utilizar una distribución no informativa para
 -   A partir de la distribución posterior simulada de $\theta$, simula los resultados de pruebas binomiales para la primera muestra del estudio y represéntala.
 
 ::: {#respuesta-5 .callout-note}
+```{r}
+# Simulamos los resultados de las pruebas binomiales usando las muestras de la posterior
+y_rep_post <- rbinom(n = length(theta_post_mc), size = 22, prob = theta_post_mc)
+
+# Gráfico de la distribución predictiva posterior binomial
+ggplot() +
+  geom_bar(aes(x = y_rep_post, y = after_stat(prop)), 
+           fill = color_defecto, alpha = 0.7, width = 0.8) +
+  geom_vline(xintercept = y_obs, color = color_defecto, linetype = "dashed") +
+  labs(
+    title = "Distribución Predictiva Posterior Binomial",
+    subtitle = "Simulación de resultados binomiales con la posterior de θ",
+    x = "Número de éxitos en 22 ensayos",
+    y = "Probabilidad"
+  ) +
+  scale_x_continuous(breaks = seq(0, 22, 2))
+
+cat(
+  "Media predictiva posterior:", round(mean(y_rep_post), 2), "\n",
+  "Varianza predictiva posterior:", round(var(y_rep_post), 2), "\n",
+  "Probabilidad de ≥16 éxitos:", round(mean(y_rep_post >= y_obs), 3), "\n"
+)
+```
 :::
 
 Lo que acabas de representar es la **distribución predictiva posterior** del modelo ajustado con la muestra 1 del estudio.
@@ -143,15 +307,105 @@ Lo que acabas de representar es la **distribución predictiva posterior** del mo
 -   Obten las distribuciones posterior y predictiva posterior con la muestra 2, **asumiendo desconocimiento total sobre la tasa de aceptación** (i.e., distribución no informativa).
 
 ::: {#respuesta-6 .callout-note}
+```{r}
+y_obs_2 <- sum(aceptacion_muestra_2$resp_descarga_app == "Si")  # Éxitos observados
+n_2 <- nrow(aceptacion_muestra_2)                                # n = 113
+
+theta_post_mc_2 <- rbeta(10000, 66, 49)  # Muestras de la posterior
+
+# Media y varianza teóricas vs. simuladas
+media_teorica_2 <- 66 / (66 + 49)        # ≈ 0.574
+var_teorica_2 <- (66 * 49) / ((66 + 49)^2 * (66 + 49 + 1))  # ≈ 0.0021
+
+ggplot() +
+  geom_density(aes(theta_post_mc_2), fill = color_defecto, alpha = 0.5) +
+  geom_vline(xintercept = media_teorica_2, linetype = "dashed", color = color_defecto) +
+  labs(
+    title = "Distribución Posterior de θ (Beta(66,49))",
+    subtitle = "Muestra 2: 65 éxitos en 113 ensayos",
+    x = "Tasa de aceptación (θ)",
+    y = "Densidad"
+  ) +
+  scale_x_continuous(limits = c(0.3, 0.8))
+
+# Simulamos datos binomiales)
+y_rep_post_2 <- rbinom(10000, size = n_2, prob = theta_post_mc_2)
+
+# Gráfico
+ggplot() +
+  geom_bar(
+    aes(x = y_rep_post_2, y = after_stat(prop)), 
+    fill = color_defecto, alpha = 0.7, width = 0.8
+  ) +
+  geom_vline(xintercept = y_obs_2, color = color_defecto, linetype = "dashed") +
+  labs(
+    title = "Distribución Predictiva Posterior (Muestra 2)",
+    x = "Número de éxitos en 113 ensayos",
+    y = "Probabilidad"
+  ) +
+  scale_x_continuous(breaks = seq(40, 80, 5))
+
+cat(
+  "Media predictiva posterior:", round(mean(y_rep_post_2), 2), "\n",
+  "Varianza predictiva posterior:", round(var(y_rep_post_2), 2), "\n",
+  "Intervalo de credibilidad 95%:", quantile(y_rep_post_2, c(0.025, 0.975)), "\n",
+  "Probabilidad de ≥", y_obs_2, "éxitos:", round(mean(y_rep_post_2 >= y_obs_2), 3), "\n"
+)
+```
+Los datos observados (65/113) son totalmente consistentes (percentil ≈50%). La incertidumbre (varianza) se reduce respecto a la Muestra 1. Es decir, la muestra más grande ajusta mejor la estimación de θ (varianza más baja y mayor precisión).
 :::
 
 ## Comprobaciones predictivas posteriores
 
 ### Pregunta 7
 
--   Dada la distribución posterior tras el ajuste del modelo con la muestra 2, aproxima la distribución predictiva posterior para un tamaño muestral de `{r} n_muestra_1`. Represéntala junto con la distribución predictiva posterior resultante de ajustar el modelo con la muestra 1, y representa mediante una línea vertical el valor obtenido de la muestra empírica 1.
+-   Dada la distribución posterior tras el ajuste del modelo con la muestra 2, aproxima la distribución predictiva posterior para un tamaño muestral de `{r} n_muestra1`. Represéntala junto con la distribución predictiva posterior resultante de ajustar el modelo con la muestra 1, y representa mediante una línea vertical el valor obtenido de la muestra empírica 1.
 
 ::: {#respuesta-7 .callout-note}
+
+```{r}
+# Predictiva a partir de Muestra 1 (Beta(17,7))
+y_rep_post_1 <- rbinom(N, size = 22, prob = theta_post_mc)
+
+# Predictiva a partir de Muestra 2 (Beta(66,49)), pero para n=22
+y_rep_post_2_rescaled <- rbinom(N, size = 22, prob = theta_post_mc_2)
+
+# Datos para el gráfico
+df_comparacion <- tibble(
+  Muestra = rep(c("Post-Muestra 1", "Post-Muestra 2"), each = N),
+  Exitos = c(y_rep_post_1, y_rep_post_2_rescaled)
+)
+
+# Valor observado en Muestra 1
+y_obs_1 <- sum(aceptacion_muestra_1$resp_descarga_app == "Si")  # 16
+
+ggplot(df_comparacion) +
+  geom_bar(
+    aes(x = Exitos, y = after_stat(prop)), fill = color_defecto, alpha = 0.7, 
+    position = "identity", width = 0.8
+  ) +
+  geom_vline(xintercept = y_obs_1, color = color_defecto, linetype = "dashed", linewidth = 1) +
+  facet_wrap(~Muestra, ncol = 1) +
+  labs(
+    title = "Comparación de Predictivas Posteriores (n=22)",
+    subtitle = "Ajustadas con Muestra 1 (Beta(17,7)) vs. Muestra 2 (Beta(66,49))",
+    x = "Número de éxitos en 22 ensayos",
+    y = "Probabilidad"
+  ) +
+  scale_x_continuous(breaks = seq(0, 22, 2))
+  
+ cat(
+  "Media:", round(mean(y_rep_post_1), 2), "\n",
+  "IC 95%:", quantile(y_rep_post_1, c(0.025, 0.975)), "\n",
+  "Prob(≥16):", round(mean(y_rep_post_1 >= y_obs_1), 3), "\n\n",
+  
+  "Media:", round(mean(y_rep_post_2_rescaled), 2), "\n",
+  "IC 95%:", quantile(y_rep_post_2_rescaled, c(0.025, 0.975)), "\n",
+  "Prob(≥16):", round(mean(y_rep_post_2_rescaled >= y_obs_1), 3), "\n"
+)
+  
+```
+La predictiva sugiere menos éxitos (media 12.6).Solo hay un 6% de probabilidad de ≥16 éxitos.¿Podría haber una sobreestimación en la muestra 1 por su tamaño pequeño (n=22)?.
 :::
 
 ### Pregunta 8
@@ -159,6 +413,33 @@ Lo que acabas de representar es la **distribución predictiva posterior** del mo
 -   Calcula, en el modelo ajustado con la muestra 2, la probabilidad de obtener un valor mayor o igual / menor o igual que la primera muestra empírica. ¿Cómo se representan estas probabilidades en el gráfico anterior?
 
 ::: {#respuesta-8 .callout-note}
+```{r}
+# Probabilidades
+p_mayor_igual <- mean(y_rep_post_2_rescaled >= 16)  # P(Y_rep ≥ 16)
+p_menor_igual <- mean(y_rep_post_2_rescaled <= 16)  # P(Y_rep ≤ 16)
+
+cat(
+  "Probabilidad de ≥16 éxitos:", round(p_mayor_igual, 3), "\n",
+  "Probabilidad de ≤16 éxitos:", round(p_menor_igual, 3), "\n"
+)
+```
+
+```{r}
+ggplot(df_comparacion %>% filter(Muestra == "Post-Muestra 2")) +
+  geom_bar(
+    aes(x = Exitos, y = after_stat(prop)), 
+    fill = color_defecto, alpha = 0.7, width = 0.8
+  ) +
+  geom_vline(xintercept = 16, color = color_defecto, linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Predictiva Posterior (Muestra 2) con Probabilidades",
+    x = "Número de éxitos en 22 ensayos",
+    y = "Probabilidad"
+  ) +
+  scale_x_continuous(breaks = seq(0, 22, 2))
+```
+La probabilidad de observar ≥16 éxitos bajo el modelo ajustado con la muestra 2 es aproximadamente del 12,7%. En el modelo ajustado con la muestra 1 (Beta(17,7)), la probabilidad de obtener ≥16 éxitos era mucho mayor.
+
 :::
 
 ### Pregunta 9
@@ -166,6 +447,8 @@ Lo que acabas de representar es la **distribución predictiva posterior** del mo
 -   Si te preguntasen por el *valor-*$p$ *predictivo posterior* de la hipótesis que "la muestra 1 esté extraída de la misma población que la muestra 2", ¿qué valor reportarías y cómo lo interpretarías?
 
 ::: {#respuesta-9 .callout-note}
+Es 6%. Este valor representa la probabilidad, bajo el modelo ajustado con los datos de la muestra 2, de observar un resultado tan extremo (o más) como el obtenido en la muestra 1 (es decir, ≥16 éxitos). Esto vendría a decir que si ambas muestras provinieran realmente de la misma población, sería poco probable (aunque no imposible) observar un resultado como el de la muestra 1.
+
 :::
 
 ### Pregunta 10
@@ -173,6 +456,33 @@ Lo que acabas de representar es la **distribución predictiva posterior** del mo
 -   Prueba a hacerlo a la inversa; es decir, ajusta el modelo con la muestra 1, y después realiza la *comprobación predictiva posterior* de si la muestra 2 proviene de la misma población que la muestra 1. ¿Qué conclusión obtendrías?
 
 ::: {#respuesta-10 .callout-note}
+```{r}
+theta_post_m1 <- rbeta(100000, 17, 7)  # Simulación de la posterior
+
+y_rep_m2 <- rbinom(100000, size = 113, prob = theta_post_m1)
+y_obs_m2 <- sum(aceptacion_muestra_2$resp_descarga_app == "Si")  # Éxitos observados en M2
+
+# Test de dos colas (discrepancia absoluta)
+media_predictiva <- mean(y_rep_m2)                    # ≈80.2 (17/24 * 113)
+discrepancia_obs <- abs(y_obs_m2 - media_predictiva)  # |65 - 80.2| = 15.2
+valor_p <- mean(abs(y_rep_m2 - media_predictiva) >= discrepancia_obs)
+cat("Valor-p predictivo posterior (dos colas):", round(valor_p, 4), "\n")
+
+ggplot(data.frame(Exitos = y_rep_m2)) +
+  geom_histogram(aes(x = Exitos, y = after_stat(density)), 
+                 binwidth = 2, fill = color_defecto, alpha = 0.7) +
+  geom_vline(xintercept = y_obs_m2, color = color_defecto, linetype = "dashed", linewidth = 1) +
+  annotate("text", x = 60, y = 0.03, 
+           label = paste("Valor-p =", round(valor_p, 4)), 
+           color = color_defecto, size = 5) +
+  labs(
+    title = "Comprobación Predictiva Posterior: Muestra 2 vs Modelo M1",
+    subtitle = "Distribución de réplicas bajo Beta(17,7) vs dato observado (65/113)",
+    x = "Número de éxitos en 113 ensayos",
+    y = "Densidad"
+  )
+```
+El valor-p de 0.187 también es mayor que 0.05, lo que nuevamente significa que no se rechaza la hipótesis nula de que la muestra 2 proviene de la misma población que la muestra 1.
 :::
 
 # Ejercicio 2: Modelo gamma-Poisson de la "tasa de fertilidad"
@@ -247,6 +557,27 @@ $$
 *(Nota: Para representar una densidad directamente con `ggplot()` a partir de las muestras de simuladas, consulta la ayuda de `geom_density()`)*
 
 ::: {#respuesta-11 .callout-note}
+```{r}
+# Número de muestras
+n_muestras <- 1e6
+
+# Simulamos las distribuciones posteriores
+posterior_sin <- rgamma(n_muestras, shape = a_post_sin, rate = b_post_sin)
+posterior_con <- rgamma(n_muestras, shape = a_post_con, rate = b_post_con)
+
+# Creamos un conjunto de datos para el gráfico
+df_posterior <- tibble(
+  lambda = c(posterior_sin, posterior_con),
+  grupo = rep(c("Sin título", "Con título"), each = n_muestras)
+)
+
+ggplot(df_posterior, aes(x = lambda, fill = grupo)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribuciones posteriores de la tasa de fertilidad",
+       x = "Tasa de fertilidad (λ)",
+       y = "Densidad")
+```
+El grupo sin título universitario tiene valores más altos de λ (mayor tasa de fertilidad) que la del grupo con título universitario.
 :::
 
 ### Pregunta 12
@@ -254,6 +585,32 @@ $$
 -   A partir de las distribuciones posteriores de $\lambda$, aproxima las distribuciones predictivas posteriores simulando datos de la distribución de Poisson (consulta la ayuda de `rpois()` si lo necesitas). Representa las distribuciones predictivas posteriores de ambos grupos.
 
 ::: {#respuesta-12 .callout-note}
+```{r}
+# Número de simulaciones
+n_sim <- 1e6
+
+# Simulamos primero los lambda de las posteriores
+lambda_sin <- rgamma(n_sim, shape = a_post_sin, rate = b_post_sin)
+lambda_con <- rgamma(n_sim, shape = a_post_con, rate = b_post_con)
+
+# Luego simulamos los conteos de hijos (datos) para cada lambda
+predictiva_sin <- rpois(n_sim, lambda_sin)
+predictiva_con <- rpois(n_sim, lambda_con)
+
+# Preparamos los datos para visualización
+df_predictiva <- tibble(
+  n_hijos = c(predictiva_sin, predictiva_con),
+  grupo = rep(c("Sin título", "Con título"), each = n_sim)
+)
+  
+#Escojo el gráfico de barras porque n_hijos es una variable discreta:
+ggplot(df_predictiva, aes(x = n_hijos, fill = grupo)) +
+  geom_bar(position = "dodge", alpha = 0.7) +
+  labs(title = "Distribuciones predictivas posteriores del número de hijos",
+       x = "Número de hijos",
+       y = "Frecuencia")
+```
+El grupo sin título universitario muestra una distribución predictiva con mayor media y dispersión, indicando mayor número esperado de hijos.
 :::
 
 ## Inferencia sobre la distribución predictiva posterior
@@ -265,6 +622,38 @@ En base a las distribuciones predictivas posteriores, obtén las respuetas a con
 -   ¿Cuáles son las probabilidades de que una mujer (de 40 años en los 90 en USA) con 4 hijos o más sea o no titulada universitaria? ¿Cuál es la "odds" de que no sea titulada universitaria?
 
 ::: {#respuesta-13 .callout-note}
+
+```{r}
+# Probabilidad de que una mujer con título universitario tenga 4 o más hijos
+p_con <- mean(predictiva_con >= 4)
+
+# Probabilidad de que una mujer sin título universitario tenga 4 o más hijos
+p_sin <- mean(predictiva_sin >= 4)
+
+# Probabilidad marginal P(n_hijos >= 4)
+# Asumiendo proporciones iguales de mujeres con/sin título
+p_marginal <- (p_con + p_sin)/2
+
+# Probabilidades condicionales inversas usando Bayes
+# P(titulada | n_hijos >= 4)
+p_titulada_dado_4mas <- p_con * 0.5 / p_marginal
+
+# P(no titulada | n_hijos >= 4)
+p_no_titulada_dado_4mas <- p_sin * 0.5 / p_marginal
+
+# Odds de no ser titulada dado 4+ hijos
+odds_no_titulada <- p_no_titulada_dado_4mas / p_titulada_dado_4mas
+
+cat(
+  "P(titulada | >=4 hijos): ", p_titulada_dado_4mas, "\n",
+  "P(no titulada | >=4 hijos): ", p_no_titulada_dado_4mas, "\n",
+  "Odds no titulada: ", odds_no_titulada, "\n"
+)
+```
+La probabilidad de que una mujer con 4 o más hijos no tenga título universitario es del 66.2%, frente a un 33.8% de que sí lo tenga.
+Una mujer con 4 hijos o más tiene aproximadamente 1,96 veces más probabilidades de no ser titulada que de ser titulada (es casi el doble de probable). 
+En los ejercicios anteriores, ya se observaba que las distribuciones de número de hijos para mujeres sin título estaban desplazadas hacia valores más altos (es decir, más hijos).
+ 
 :::
 
 ### Pregunta 14
@@ -272,6 +661,18 @@ En base a las distribuciones predictivas posteriores, obtén las respuetas a con
 -   Si tomamos dos mujeres al azar, una con y otra sin titulación universitaria, ¿cuál es la probabilidad de que la mujer con titulación universitaria tenga más hijos que la mujer sin titulación universitaria?
 
 ::: {#respuesta-14 .callout-note}
+```{r}
+# Simulamos pares independientes de mujeres
+n_pares <- 1e6
+mujer_con <- rpois(n_pares, rgamma(n_pares, shape = a_post_con, rate = b_post_con))
+mujer_sin <- rpois(n_pares, rgamma(n_pares, shape = a_post_sin, rate = b_post_sin))
+
+# Calculamos la probabilidad
+prob_mayor <- mean(mujer_con > mujer_sin)
+prob_mayor
+```
+
+Hay un 30% de probabilidad de que la mujer con título tenga más hijos que la mujer sin título es 30%.
 :::
 
 ### Pregunta 15
@@ -279,6 +680,23 @@ En base a las distribuciones predictivas posteriores, obtén las respuetas a con
 -   A partir de estas aproximaciones a las distribuciones predictivas posteriores, ¿podrías obtener la probabilidad conjunta de que una mujer no tenga ningún hijo y sea o no titulada universitaria? Justifica tu respuesta.
 
 ::: {#respuesta-15 .callout-note}
+```{r}
+# Probabilidad predictiva de 0 hijos en cada grupo
+p0_con <- mean(predictiva_con == 0)
+p0_sin <- mean(predictiva_sin == 0)
+
+# Asumiendo P(titulada) = P(no titulada) = 0.5 (ya que no tenemos información previa)
+p_conjunta_con <- 0.5 * p0_con
+p_conjunta_sin <- 0.5 * p0_sin
+
+print(p_conjunta_con)  # Probabilidad titulada y 0 hijos
+print(p_conjunta_sin)  # Probabilidad no titulada y 0 hijos
+
+# Calcular y mostrar la probabilidad total de no tener hijos
+p_total <- p_conjunta_con + p_conjunta_sin
+print(p_total)  # Probabilidad total de no tener hijos
+```
+La probabilidad total de que una mujer, independientemente de si tiene o no título universitario, no tenga hijos es 0.184, lo que equivale al 18.4%.
 :::
 
 ## Comprobaciones predictivas posteriores
@@ -288,6 +706,31 @@ En base a las distribuciones predictivas posteriores, obtén las respuetas a con
 -   Representa la *proporción* de mujeres tituladas universitarias en función del número de hijos, junto con su distribución predictiva posterior.
 
 ::: {#respuesta-16 .callout-note}
+```{r}
+n_sim <- 1e6
+
+# Mujeres con título
+mujeres_con <- rpois(n_sim, rgamma(n_sim, shape = a_post_con, rate = b_post_con))
+
+# Calculamos proporciones observadas
+prop_tituladas <- tibble(n_hijos = mujeres_con) %>%  
+  count(n_hijos, name = "n_mujeres") %>%
+  mutate(
+    proporcion = n_mujeres / sum(n_mujeres),
+    porcentaje = scales::percent(proporcion, accuracy = 0.1)
+  ) %>%
+  filter(n_mujeres >= 100)
+
+ggplot(prop_tituladas, aes(x = n_hijos, y = proporcion)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.7) +
+  labs(
+    title = "Proporción de mujeres tituladas universitarias por número de hijos",
+    subtitle = "Distribución predictiva posterior (1,000,000 simulaciones)",
+    x = "Número de hijos",
+    y = "Proporción de tituladas universitarias"
+  ) +
+  ylim(0, 1.05)
+```
 :::
 
 ## Comprobaciones predictivas posteriores sobre la muestra
@@ -310,6 +753,42 @@ A continuación vamos a hacer eso mismo con las distribuciones predictivas poste
 -   Observa el máximo número de hijos que se obtiene en la distribución empírica y en la distribución predictiva posterior en la pregunta 16. ¿Cuánto es en cada caso?
 
 ::: {#respuesta-17 .callout-note}
+```{r}
+# Máximo observado en los datos reales para cada grupo
+max_empirico_con <- fertilidad_gss_1990 |> 
+  filter(titulo_uni == "con", frecuencia > 0) |> 
+  pull(n_hijos) |> 
+  max()
+
+max_empirico_sin <- fertilidad_gss_1990 |> 
+  filter(titulo_uni == "sin", frecuencia > 0) |> 
+  pull(n_hijos) |> 
+  max()
+
+mujeres_sin <- rpois(n_sim, rgamma(n_sim, shape = a_post_sin, rate = b_post_sin))
+
+# Máximo en las simulaciones predictivas
+max_predictivo_con <- max(mujeres_con)
+max_predictivo_sin <- max(mujeres_sin)
+
+# Preparamos datos para visualización
+df_maximos <- tibble(
+  Grupo = rep(c("Con título", "Sin título"), each = 2),
+  Tipo = rep(c("Empírico", "Predictivo"), 2),
+  Valor = c(max_empirico_con, max_predictivo_con, max_empirico_sin, max_predictivo_sin)
+)
+
+ggplot(df_maximos, aes(x = Grupo, y = Valor, fill = Tipo)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = Valor), position = position_dodge(width = 0.9), vjust = -0.5) +
+  labs(title = "Comparación del máximo número de hijos observado",
+       subtitle = "Distribución empírica vs. predictiva posterior",
+       x = "Grupo",
+       y = "Máximo número de hijos",
+       fill = "Distribución")
+```
+En ambos grupos el modelo tiende a sobreestimar el número máximo de hijos.
+
 :::
 
 ### Pregunta 18
@@ -319,19 +798,46 @@ A continuación vamos a hacer eso mismo con las distribuciones predictivas poste
 ::: {#respuesta-18 .callout-note}
 ```{r max-poisson}
 max_poisson <- function(lambda, n) {
-  
-  # COMPLETAR AQUÍ EL CUERPO DE LA FUNCIÓN
+  muestra <- rpois(n, lambda)
+  return(max(muestra))
 }
+```
+
+Vamos a ver un ejemplo:
+
+```{r ejemplo}
+# Simular el máximo de 100 mujeres con lambda = 2.5
+max_1 <- max_poisson(lambda = 2.5, n = 100)
+print(max_1)
 ```
 :::
 
 ### Pregunta 19
 
--   Utilizando la aproximación a la distribución posterior de la pregunta 11 y la función `max_poisson()` que has escrito, determina el valor-$p$ predictivo posterior de obtener, según el modelo ajustado, una muestra de mujeres universitarias de tamaño `{r} n_con` en la que el máximo número de hijos sea igual o menor que `{r} max_hijos_emp` e interpreta el resultado.
+-   Utilizando la aproximación a la distribución posterior de la pregunta 11 y la función `max_poisson()` que has escrito, determina el valor-$p$ predictivo posterior de obtener, según el modelo ajustado, una muestra de mujeres universitarias de tamaño `{r} n_con` en la que el máximo número de hijos sea igual o menor que max_hijos_emp e interpreta el resultado.
 
 *(NOTA: ¡Cuidado! Probablemente tengas que "iterar" sobre las muestras de la distribución posterior)*
 
 ::: {#respuesta-19 .callout-note}
+```{r}
+lambda_post_con <- df_posterior %>% 
+  filter(grupo == "Con título") %>% 
+  pull(lambda)
+
+max_poisson <- function(lambda, n) {
+  qpois(1 - (1/n), lambda)  # Aproximación teórica del máximo esperado
+}
+
+maximos_simulados <- sapply(lambda_post_con, max_poisson, n = n_con)
+
+# 4. Valor-p (probabilidad de máximo ≤ observado)
+valor_p <- mean(maximos_simulados <= max_empirico_con)
+
+# Resultado
+cat("Valor-p predictivo posterior:", round(valor_p, 4), "\n")
+```
+El valor-p predictivo posterior es: 0.664
+Un valor-p cercano a 0.5 (como en este caso) indica que el modelo está relativamente bien ajustado para generar valores dentro del rango observado, lo que sugiere que el valor máximo empírico no es inusual bajo el modelo predictivo.
 :::
 
 ### Pregunta 20
@@ -339,4 +845,27 @@ max_poisson <- function(lambda, n) {
 -   En base a tus observaciones de las distribuciones predictivas posteriores, propón una comprobación predictiva posterior en alguna (o ambas) de las distribuciones en función de la titulación universitaria. Determina el valor-$p$ predictivo posterior correspondiente e interprétalo.
 
 ::: {#respuesta-20 .callout-note}
+```{r}
+# Proporción empírica de mujeres sin hijos en el grupo con título
+prop_empirica_sin_hijos <- fertilidad_gss_1990 |> 
+  filter(titulo_uni == "con") |> 
+  summarise(prop = mean(n_hijos == 0)) |> 
+  pull(prop)
+
+# Simulación de la distribución de la proporción bajo el modelo
+n_sim <- 10000
+prop_sin_hijos_sim <- numeric(n_sim)
+
+for(i in 1:n_sim) {
+  lambda_sim <- rgamma(1, shape = a_post_con, rate = b_post_con)
+  muestra_sim <- rpois(n_con, lambda_sim)
+  prop_sin_hijos_sim[i] <- mean(muestra_sim == 0)
+}
+
+# Cálculo del valor-p
+valor_p <- mean(prop_sin_hijos_sim <= prop_empirica_sin_hijos)
+
+cat("El valor-p predictivo posterior es:", round(valor_p, 4), "\n")
+```
+Existe un 14.7% de probabilidad de observar una proporción de mujeres sin hijos igual o menor a la observada empíricamente en la muestra.
 :::
